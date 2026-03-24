@@ -1,0 +1,74 @@
+/// DayFlow 应用全局常量定义
+///
+/// 此文件包含应用程序中使用的所有常量值，包括：
+/// - Supabase 后端配置（URL 和匿名密钥）
+/// - 应用基本信息（名称、版本）
+/// - 默认心情选项列表
+///
+/// 注意：Supabase 的 URL 和 anonKey 是占位符，
+/// 部署前必须替换为真实的项目凭证。
+library;
+
+/// 应用全局常量类
+///
+/// 使用抽象类 + 静态常量的方式，防止被实例化，
+/// 所有常量通过 [AppConstants.xxx] 的方式访问。
+abstract class AppConstants {
+  // ============================================================
+  // Supabase 后端配置
+  // ============================================================
+
+  /// Supabase 项目 URL
+  ///
+  /// ⚠️ 占位符 - 请替换为你的 Supabase 项目 URL
+  /// 格式：https://<project-ref>.supabase.co
+  static const String supabaseUrl = 'https://YOUR_PROJECT_REF.supabase.co';
+
+  /// Supabase 匿名密钥（anon key）
+  ///
+  /// ⚠️ 占位符 - 请替换为你的 Supabase 匿名密钥
+  /// 此密钥可安全暴露在客户端，配合 Row Level Security 使用
+  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+
+  // ============================================================
+  // 应用基本信息
+  // ============================================================
+
+  /// 应用名称
+  static const String appName = 'DayFlow';
+
+  /// 应用版本号
+  static const String appVersion = '1.0.0';
+
+  /// 应用构建号
+  static const int appBuildNumber = 1;
+
+  // ============================================================
+  // 默认心情选项
+  // ============================================================
+
+  /// 默认心情选项列表
+  ///
+  /// 每个心情由 emoji 图标和中文标签组成，
+  /// 用户在记录日记时可以从中选择当前的心情状态。
+  /// 列表按照从积极到消极的顺序排列。
+  static const List<Map<String, String>> defaultMoodOptions = [
+    {'emoji': '😊', 'label': '开心'},
+    {'emoji': '😌', 'label': '平静'},
+    {'emoji': '🥰', 'label': '感恩'},
+    {'emoji': '😤', 'label': '愤怒'},
+    {'emoji': '😢', 'label': '难过'},
+    {'emoji': '😰', 'label': '焦虑'},
+    {'emoji': '😴', 'label': '疲惫'},
+    {'emoji': '🤔', 'label': '思考'},
+    {'emoji': '😎', 'label': '自信'},
+    {'emoji': '🤩', 'label': '兴奋'},
+  ];
+
+  // ============================================================
+  // SharedPreferences 存储键
+  // ============================================================
+
+  /// 主题模式存储键，用于持久化用户的主题偏好设置
+  static const String themePrefsKey = 'theme_mode';
+}
