@@ -1,0 +1,116 @@
+# DayFlow 持续集成工作流
+# 该工作流在推送到 main 分支或针对 main 分支的 Pull Request 时自动触发，
+# 用于代码质量检查、测试和 Web 构建。
+name: DayFlow CI
+
+# 触发条件：推送到 main 分支，或者针对 main 分支创建的 Pull Request
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 限制 GITHUB_TOKEN 的默认权限，遵循最小权限原则
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================
+  # 静态分析任务：检查代码风格和潜在问题
+  # ============================================================
+  analyze:
+    name: 代码分析
+    runs-on: ubuntu-latest
+    steps:
+      # 第一步：检出仓库代码到工作目录
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 第二步：配置 Flutter SDK 环境
+      # 使用 subosito/flutter-action 安装指定版本的 Flutter
+      - name: 配置 Flutter 环境
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.0"
+          channel: stable
+
+      # 第三步：安装项目依赖包
+      # 根据 pubspec.yaml 下载所有依赖
+      - name: 安装依赖
+        run: flutter pub get
+
+      # 第四步：运行静态代码分析
+      # --no-fatal-infos 表示信息级别的提示不会导致构建失败，
+      # 仅警告和错误会导致失败
+      - name: 运行代码分析
+        run: flutter analyze --no-fatal-infos
+
+      # 第五步：检查代码格式是否符合 Dart 规范
+      # --set-exit-if-changed 在发现格式不一致时返回非零退出码，使任务失败
+      - name: 检查代码格式
+        run: dart format --set-exit-if-changed .
+
+  # ============================================================
+  # 测试任务：运行项目中的所有单元测试和组件测试
+  # ============================================================
+  test:
+    name: 运行测试
+    runs-on: ubuntu-latest
+    steps:
+      # 第一步：检出仓库代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 第二步：配置 Flutter SDK 环境
+      - name: 配置 Flutter 环境
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.0"
+          channel: stable
+
+      # 第三步：安装项目依赖包
+      - name: 安装依赖
+        run: flutter pub get
+
+      # 第四步：执行所有测试用例
+      # 包括 test/ 目录下的单元测试和 Widget 测试
+      - name: 执行测试
+        run: flutter test
+
+  # ============================================================
+  # Web 构建任务：编译生成 Web 发布产物
+  # 依赖 analyze 和 test 任务全部通过后才会执行
+  # ============================================================
+  build-web:
+    name: 构建 Web 应用
+    # 等待代码分析和测试任务都成功后再构建
+    needs: [analyze, test]
+    runs-on: ubuntu-latest
+    steps:
+      # 第一步：检出仓库代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 第二步：配置 Flutter SDK 环境
+      - name: 配置 Flutter 环境
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.0"
+          channel: stable
+
+      # 第三步：安装项目依赖包
+      - name: 安装依赖
+        run: flutter pub get
+
+      # 第四步：以 release 模式构建 Web 应用
+      # 生成的产物位于 build/web 目录
+      - name: 构建 Web 版本
+        run: flutter build web --release
+
+      # 第五步：上传构建产物
+      # 将 build/web 目录作为工件上传，方便后续部署或下载
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
