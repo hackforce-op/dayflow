@@ -162,14 +162,23 @@ class DiaryDao {
   /// 在日记正文中进行模糊搜索（LIKE '%keyword%'）。
   /// 搜索不区分大小写（由 SQLite 的 LIKE 行为决定）。
   ///
+  /// 注意：Drift 的 `.like()` 方法使用参数化查询，不存在 SQL 注入风险。
+  /// 关键词中的 LIKE 通配符（% 和 _）会被转义，确保精确匹配用户输入。
+  ///
   /// [userId] 用户唯一标识符
   /// [keyword] 搜索关键词
   ///
   /// 返回匹配的日记列表，按日期降序排列。
   Future<List<DiaryEntry>> searchEntries(String userId, String keyword) {
+    // 转义 LIKE 通配符，防止用户输入的 % 和 _ 被当作模式匹配字符
+    final escaped = keyword
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
     return (_db.select(_db.diaryEntries)
           ..where((t) =>
-              t.userId.equals(userId) & t.content.like('%$keyword%'))
+              t.userId.equals(userId) &
+              t.content.like('%$escaped%', escape: r'\'))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.date,
