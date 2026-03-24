@@ -20,6 +20,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:dayflow/shared/widgets/app_bottom_nav.dart';
+import 'package:dayflow/features/auth/presentation/pages/login_page.dart';
+import 'package:dayflow/features/auth/presentation/pages/register_page.dart';
+import 'package:dayflow/features/auth/presentation/pages/splash_page.dart';
 
 // ============================================================
 // 路由路径常量
@@ -123,25 +126,25 @@ GoRouter createRouter(Ref ref) {
     // 路由定义
     // ----------------------------------------------------------
     routes: [
-      // 闪屏页路由
+      // 闪屏页路由 - 应用启动时显示，自动检查认证状态
       GoRoute(
         path: RoutePaths.splash,
         name: 'splash',
-        builder: (context, state) => const _PlaceholderPage(title: '启动中...'),
+        builder: (context, state) => const SplashPage(),
       ),
 
-      // 登录页路由
+      // 登录页路由 - 邮箱密码登录 + Google 第三方登录
       GoRoute(
         path: RoutePaths.login,
         name: 'login',
-        builder: (context, state) => const _PlaceholderPage(title: '登录'),
+        builder: (context, state) => const LoginPage(),
       ),
 
-      // 注册页路由
+      // 注册页路由 - 新用户注册（含密码强度提示）
       GoRoute(
         path: RoutePaths.register,
         name: 'register',
-        builder: (context, state) => const _PlaceholderPage(title: '注册'),
+        builder: (context, state) => const RegisterPage(),
       ),
 
       // --------------------------------------------------------
