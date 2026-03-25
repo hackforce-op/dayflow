@@ -1,0 +1,43 @@
+<!--
+  DayFlow - Android 应用清单配置
+  定义应用基本信息、权限及组件声明
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.dayflow.app">
+
+    <!-- 网络权限（用于 Supabase 数据同步） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="DayFlow"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- 应用启动时显示的初始主题 -->
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Flutter 引擎初始化配置 -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
