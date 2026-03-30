@@ -233,6 +233,17 @@ class DiaryListNotifier extends StateNotifier<DiaryListState> {
       debugPrint('[DiaryListNotifier] 同步刷新失败: $e');
     }
   }
+
+  /// 删除指定日记后刷新当前列表
+  Future<void> deleteEntry(int entryId) async {
+    try {
+      await _repository.deleteEntry(entryId, _userId);
+      await refresh();
+    } catch (e) {
+      debugPrint('[DiaryListNotifier] 删除日记失败: $e');
+      state = const DiaryListError('删除日记失败，请稍后重试');
+    }
+  }
 }
 
 // ==============================================================================
@@ -431,12 +442,10 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
       debugPrint('[DiaryEditorNotifier] 保存日记失败: $e');
       state = const DiaryEditorError('保存失败，请稍后重试');
       // 恢复到编辑状态，保留用户输入
-      if (currentState is DiaryEditorLoaded) {
-        state = DiaryEditorLoaded(
-          entry: currentState.entry.copyWith(content: content, mood: mood),
-          isDirty: true,
-        );
-      }
+      state = DiaryEditorLoaded(
+        entry: currentState.entry.copyWith(content: content, mood: mood),
+        isDirty: true,
+      );
     }
   }
 

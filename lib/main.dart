@@ -38,17 +38,89 @@ void main() async {
   // 在调用任何异步方法（如 Supabase 初始化）之前必须调用此方法
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 步骤 2：初始化 Supabase 后端连接
-  // 使用 AppConstants 中配置的 URL 和匿名密钥
-  await initializeSupabase();
+  try {
+    // 步骤 2：初始化 Supabase 后端连接
+    // 使用 AppConstants 中配置的 URL 和匿名密钥
+    await initializeSupabase();
 
-  // 步骤 3：启动应用
-  // ProviderScope 是 Riverpod 的根组件，存储所有 Provider 的状态
-  runApp(
-    const ProviderScope(
-      child: DayFlowApp(),
-    ),
-  );
+    // 步骤 3：启动应用
+    // ProviderScope 是 Riverpod 的根组件，存储所有 Provider 的状态
+    runApp(
+      const ProviderScope(
+        child: DayFlowApp(),
+      ),
+    );
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'dayflow',
+      ),
+    );
+
+    runApp(
+      StartupErrorApp(
+        message: _formatStartupError(error),
+      ),
+    );
+  }
+}
+
+String _formatStartupError(Object error) {
+  if (error is StateError) {
+    return error.message;
+  }
+
+  return '应用启动失败，请检查 Supabase 配置和网络连接。\n$error';
+}
+
+class StartupErrorApp extends StatelessWidget {
+  const StartupErrorApp({
+    super.key,
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: AppConstants.appName,
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'DayFlow 启动失败',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 12),
+                        SelectableText(message),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ============================================================

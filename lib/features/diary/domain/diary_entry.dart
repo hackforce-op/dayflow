@@ -18,41 +18,46 @@
 /// 使用示例：
 /// ```dart
 /// final mood = Mood.happy;
-/// print(mood.label);  // 输出: 😊 开心
+/// print(mood.emoji);  // 输出: 😊
+/// print(mood.label);  // 输出: 开心
 /// print(mood.value);  // 输出: happy
 /// ```
 enum Mood {
   /// 开心 - 表示积极、愉悦的心情
-  happy('😊 开心', 'happy'),
+  happy('😊', '开心', 'happy'),
 
   /// 平静 - 表示平和、安宁的心情
-  calm('😌 平静', 'calm'),
+  calm('😌', '平静', 'calm'),
 
   /// 悲伤 - 表示低落、难过的心情
-  sad('😢 悲伤', 'sad'),
+  sad('😢', '悲伤', 'sad'),
 
   /// 愤怒 - 表示生气、不满的心情
-  angry('😠 愤怒', 'angry'),
+  angry('😠', '愤怒', 'angry'),
 
   /// 焦虑 - 表示紧张、担忧的心情
-  anxious('😰 焦虑', 'anxious'),
+  anxious('😰', '焦虑', 'anxious'),
 
   /// 兴奋 - 表示激动、期待的心情
-  excited('🤩 兴奋', 'excited'),
+  excited('🤩', '兴奋', 'excited'),
 
   /// 疲惫 - 表示困倦、精力不足的心情
-  tired('😴 疲惫', 'tired'),
+  tired('😴', '疲惫', 'tired'),
 
   /// 感恩 - 表示感激、珍惜的心情
-  grateful('🙏 感恩', 'grateful');
+  grateful('🙏', '感恩', 'grateful');
 
   /// 构造函数
   ///
-  /// [label] 用于在 UI 界面中显示的友好文本（包含 emoji）
+  /// [emoji] 用于在 UI 中显示的表情符号
+  /// [label] 用于在 UI 中显示的中文名称
   /// [value] 用于在数据库和 JSON 中存储的字符串标识符
-  const Mood(this.label, this.value);
+  const Mood(this.emoji, this.label, this.value);
 
-  /// UI 显示标签（包含 emoji 和中文名称）
+  /// UI 显示用 emoji
+  final String emoji;
+
+  /// UI 显示标签（中文名称）
   final String label;
 
   /// 数据库 / JSON 存储值
@@ -96,6 +101,11 @@ class DiaryEntry {
   /// 新建日记时为 null，保存到数据库后由数据库自动分配。
   final int? id;
 
+  /// Supabase 云端主键（UUID）
+  ///
+  /// 该字段用于多设备同步，与本地 SQLite 的自增主键解耦。
+  final String? cloudId;
+
   /// 日记正文内容
   ///
   /// 支持富文本格式（通过 Flutter Quill 编辑器输入）。
@@ -135,6 +145,7 @@ class DiaryEntry {
   /// [userId] 必填，所属用户 ID
   const DiaryEntry({
     this.id,
+    this.cloudId,
     required this.content,
     this.mood,
     required this.date,
@@ -152,6 +163,7 @@ class DiaryEntry {
   factory DiaryEntry.fromMap(Map<String, dynamic> map) {
     return DiaryEntry(
       id: map['id'] as int?,
+      cloudId: map['cloud_id'] as String?,
       content: map['content'] as String,
       mood: Mood.fromValue(map['mood'] as String?),
       date: DateTime.parse(map['date'] as String),
@@ -168,8 +180,11 @@ class DiaryEntry {
   ///
   /// [json] API 返回的 JSON 对象
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+
     return DiaryEntry(
-      id: json['id'] as int?,
+      id: rawId is int ? rawId : null,
+      cloudId: rawId is String ? rawId : json['cloud_id'] as String?,
       content: json['content'] as String,
       mood: Mood.fromValue(json['mood'] as String?),
       date: DateTime.parse(json['date'] as String),
@@ -186,7 +201,7 @@ class DiaryEntry {
   /// 注意：[id] 字段不包含在输出中，因为它由服务端自动生成。
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'id': id,
+      if (cloudId != null) 'id': cloudId,
       'content': content,
       'mood': mood?.value,
       'date': date.toIso8601String(),
@@ -210,6 +225,7 @@ class DiaryEntry {
   /// ```
   DiaryEntry copyWith({
     int? id,
+    String? cloudId,
     String? content,
     Mood? mood,
     DateTime? date,
@@ -219,6 +235,7 @@ class DiaryEntry {
   }) {
     return DiaryEntry(
       id: id ?? this.id,
+      cloudId: cloudId ?? this.cloudId,
       content: content ?? this.content,
       mood: mood ?? this.mood,
       date: date ?? this.date,
@@ -230,7 +247,8 @@ class DiaryEntry {
 
   @override
   String toString() {
-    return 'DiaryEntry(id: $id, date: $date, mood: ${mood?.value}, '
+    return 'DiaryEntry(id: $id, cloudId: $cloudId, date: $date, '
+        'mood: ${mood?.value}, '
         'contentLength: ${content.length})';
   }
 
@@ -239,6 +257,7 @@ class DiaryEntry {
     if (identical(this, other)) return true;
     return other is DiaryEntry &&
         other.id == id &&
+        other.cloudId == cloudId &&
         other.content == content &&
         other.mood == mood &&
         other.date == date &&
@@ -247,6 +266,6 @@ class DiaryEntry {
 
   @override
   int get hashCode {
-    return Object.hash(id, content, mood, date, userId);
+    return Object.hash(id, cloudId, content, mood, date, userId);
   }
 }

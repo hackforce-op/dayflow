@@ -28,6 +28,7 @@
 /// ============================================================================
 import 'dart:io';
 
+import 'package:drift/drift.dart' show LazyDatabase;
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -71,6 +72,11 @@ LazyDatabase createNativeConnection() {
       logStatements: false,
     );
   });
+}
+
+/// 暴露统一的平台连接工厂，供条件导入文件调用。
+LazyDatabase createDatabaseConnection() {
+  return createNativeConnection();
 }
 
 /// 获取数据库文件对象

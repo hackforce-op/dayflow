@@ -75,9 +75,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     // 触发登录操作
     ref.read(authProvider.notifier).signIn(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
   /// 处理 Google 登录按钮点击
@@ -109,6 +109,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      } else if (next is AuthStateAuthenticated) {
+        context.go(RoutePaths.diary);
       }
     });
 
@@ -227,7 +229,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   // ------------------------------------------------
                   Row(
                     children: [
-                      Expanded(child: Divider(color: theme.colorScheme.outline)),
+                      Expanded(
+                          child: Divider(color: theme.colorScheme.outline)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
@@ -235,7 +238,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           style: theme.textTheme.bodySmall,
                         ),
                       ),
-                      Expanded(child: Divider(color: theme.colorScheme.outline)),
+                      Expanded(
+                          child: Divider(color: theme.colorScheme.outline)),
                     ],
                   ),
                   const SizedBox(height: 16),

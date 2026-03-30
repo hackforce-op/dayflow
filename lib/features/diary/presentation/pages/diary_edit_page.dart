@@ -6,6 +6,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/diary/domain/diary_entry.dart';
 import 'package:dayflow/features/diary/providers/diary_provider.dart';
 import 'package:dayflow/features/diary/presentation/widgets/mood_selector.dart';
@@ -49,11 +51,6 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       Future.microtask(() {
         ref.read(diaryEditorProvider.notifier).loadEntry(widget.diaryId!);
       });
-    } else {
-      // 新建模式：初始化空白日记
-      Future.microtask(() {
-        ref.read(diaryEditorProvider.notifier).initNew();
-      });
     }
   }
 
@@ -65,8 +62,24 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     final editorState = ref.watch(diaryEditorProvider);
     final theme = Theme.of(context);
+    final currentUserId = switch (authState) {
+      AuthStateAuthenticated(:final userProfile) => userProfile.id,
+      _ => null,
+    };
+
+    if (!_isEditing &&
+        currentUserId != null &&
+        editorState is DiaryEditorInitial) {
+      Future.microtask(() {
+        if (!mounted || ref.read(diaryEditorProvider) is! DiaryEditorInitial) {
+          return;
+        }
+        ref.read(diaryEditorProvider.notifier).initNew(currentUserId);
+      });
+    }
 
     // 监听编辑器状态变化，更新 UI
     ref.listen<DiaryEditorState>(diaryEditorProvider, (prev, next) {
@@ -174,17 +187,14 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       return;
     }
 
-    final entry = DiaryEntry(
-      id: widget.diaryId,
-      content: content,
-      mood: _selectedMood,
-      date: _date,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      userId: '', // 由 repository 层填充实际用户 ID
-    );
+    if (!_isEditing && ref.read(authProvider) is! AuthStateAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('当前登录状态无效，请重新登录后重试')),
+      );
+      return;
+    }
 
-    ref.read(diaryEditorProvider.notifier).saveEntry(entry);
+    ref.read(diaryEditorProvider.notifier).save(content, _selectedMood);
   }
 
   /// 确认删除对话框
@@ -198,15 +208,22 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
           TextButton(onPressed: () => ctx.pop(false), child: const Text('取消')),
           TextButton(
             onPressed: () => ctx.pop(true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('删除'),
           ),
         ],
       ),
     );
-    if (confirmed == true && widget.diaryId != null) {
-      ref.read(diaryEditorProvider.notifier).deleteEntry(widget.diaryId!);
-      if (mounted) context.pop();
+    if (confirmed != true || widget.diaryId == null || !mounted) {
+      return;
     }
+
+    final deleted = await ref.read(diaryEditorProvider.notifier).delete();
+    if (!mounted || !deleted) {
+      return;
+    }
+
+    context.pop();
   }
 }

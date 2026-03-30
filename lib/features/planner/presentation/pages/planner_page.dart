@@ -5,6 +5,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/planner/domain/task_item.dart';
 import 'package:dayflow/features/planner/providers/task_provider.dart';
 import 'package:dayflow/features/planner/presentation/widgets/task_card.dart';
@@ -22,17 +24,21 @@ class PlannerPage extends ConsumerStatefulWidget {
 
 class _PlannerPageState extends ConsumerState<PlannerPage> {
   @override
-  void initState() {
-    super.initState();
-    Future.microtask(() {
-      ref.read(taskListProvider.notifier).loadTodayTasks();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    if (authState is AuthStateInitial || authState is AuthStateLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (authState is! AuthStateAuthenticated) {
+      return const Scaffold(
+        body: Center(child: Text('请先登录后查看规划')),
+      );
+    }
+
     final taskState = ref.watch(taskListProvider);
-    final filter = ref.watch(taskFilterProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -53,7 +59,8 @@ class _PlannerPageState extends ConsumerState<PlannerPage> {
             itemBuilder: (_) => [
               const PopupMenuItem(value: null, child: Text('全部')),
               const PopupMenuItem(value: TaskStatus.todo, child: Text('📋 待办')),
-              const PopupMenuItem(value: TaskStatus.inProgress, child: Text('🔄 进行中')),
+              const PopupMenuItem(
+                  value: TaskStatus.inProgress, child: Text('🔄 进行中')),
               const PopupMenuItem(value: TaskStatus.done, child: Text('✅ 已完成')),
             ],
           ),
@@ -73,7 +80,8 @@ class _PlannerPageState extends ConsumerState<PlannerPage> {
     return switch (state) {
       TaskListLoading() => const Center(child: CircularProgressIndicator()),
       TaskListError(message: final msg) => Center(
-          child: Text('加载失败: $msg', style: TextStyle(color: theme.colorScheme.error)),
+          child: Text('加载失败: $msg',
+              style: TextStyle(color: theme.colorScheme.error)),
         ),
       TaskListData(tasks: final tasks) => tasks.isEmpty
           ? const Center(child: Text('今天还没有任务，点击 + 创建一个吧！'))

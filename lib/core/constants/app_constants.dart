@@ -18,17 +18,52 @@ abstract class AppConstants {
   // Supabase 后端配置
   // ============================================================
 
+  static const String _supabaseUrlEnvKey = 'SUPABASE_URL';
+  static const String _supabaseAnonKeyEnvKey = 'SUPABASE_ANON_KEY';
+
   /// Supabase 项目 URL
   ///
-  /// ⚠️ 占位符 - 请替换为你的 Supabase 项目 URL
+  /// 通过 `--dart-define-from-file=env.json` 注入，
   /// 格式：https://<project-ref>.supabase.co
-  static const String supabaseUrl = 'https://YOUR_PROJECT_REF.supabase.co';
+  static const String supabaseUrl = String.fromEnvironment(_supabaseUrlEnvKey);
 
   /// Supabase 匿名密钥（anon key）
   ///
-  /// ⚠️ 占位符 - 请替换为你的 Supabase 匿名密钥
-  /// 此密钥可安全暴露在客户端，配合 Row Level Security 使用
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  /// 通过 `--dart-define-from-file=env.json` 注入。
+  /// 此密钥可安全暴露在客户端，需配合 Row Level Security 使用。
+  static const String supabaseAnonKey =
+      String.fromEnvironment(_supabaseAnonKeyEnvKey);
+
+  /// 当前项目是否已经完成 Supabase 基础配置
+  static bool get isSupabaseConfigured {
+    return supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+  }
+
+  /// 首次启动 DayFlow 所需的最小 Supabase 配置说明
+  static String get supabaseSetupInstructions {
+    return '请先在项目根目录创建 env.json，填入 SUPABASE_URL 和 '
+        'SUPABASE_ANON_KEY，然后使用 '
+        'flutter run -d chrome --web-port=3000 '
+        '--dart-define-from-file=env.json '
+        '启动项目。';
+  }
+
+  /// 在应用启动前校验 Supabase 配置。
+  static void validateSupabaseConfiguration() {
+    final missingKeys = <String>[
+      if (supabaseUrl.isEmpty) _supabaseUrlEnvKey,
+      if (supabaseAnonKey.isEmpty) _supabaseAnonKeyEnvKey,
+    ];
+
+    if (missingKeys.isEmpty) {
+      return;
+    }
+
+    throw StateError(
+      'Supabase 云项目还未配置完成，缺少：${missingKeys.join(', ')}。\n'
+      '$supabaseSetupInstructions',
+    );
+  }
 
   // ============================================================
   // 应用基本信息

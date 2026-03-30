@@ -21,12 +21,13 @@
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:dayflow/core/supabase/supabase_client.dart';
-import 'package:dayflow/features/diary/domain/diary_entry.dart';
+import 'package:dayflow/features/diary/domain/diary_entry.dart' as diary_domain;
 import 'package:dayflow/shared/database/dao/diary_dao.dart';
-import 'package:dayflow/shared/database/database.dart';
+import 'package:dayflow/shared/database/database.dart' as db;
 
 /// Supabase 中日记表的名称常量
 const _kDiaryTable = 'diary_entries';
@@ -48,6 +49,8 @@ class DiaryRepository {
   /// Supabase 客户端，用于云端数据同步
   final SupabaseClient _supabaseClient;
 
+  final Uuid _uuid = const Uuid();
+
   /// 构造函数
   ///
   /// [localDao] 本地 SQLite 数据访问对象
@@ -68,7 +71,7 @@ class DiaryRepository {
   /// 数据来源为本地 SQLite，确保离线可用。
   ///
   /// [userId] 用户唯一标识符
-  Future<List<DiaryEntry>> getAllEntries(String userId) async {
+  Future<List<diary_domain.DiaryEntry>> getAllEntries(String userId) async {
     try {
       final rows = await _localDao.getAllEntries(userId);
       return rows.map(_mapRowToDiaryEntry).toList();
@@ -83,7 +86,7 @@ class DiaryRepository {
   /// 数据库发生变化时自动推送最新列表，适配 Riverpod StreamProvider。
   ///
   /// [userId] 用户唯一标识符
-  Stream<List<DiaryEntry>> watchAllEntries(String userId) {
+  Stream<List<diary_domain.DiaryEntry>> watchAllEntries(String userId) {
     return _localDao.watchAllEntries(userId).map(
           (rows) => rows.map(_mapRowToDiaryEntry).toList(),
         );
@@ -92,7 +95,7 @@ class DiaryRepository {
   /// 根据 ID 获取单条日记
   ///
   /// [id] 日记条目的数据库 ID
-  Future<DiaryEntry?> getEntryById(int id) async {
+  Future<diary_domain.DiaryEntry?> getEntryById(int id) async {
     try {
       final row = await _localDao.getEntryById(id);
       return row != null ? _mapRowToDiaryEntry(row) : null;
@@ -107,7 +110,7 @@ class DiaryRepository {
   /// [userId] 用户唯一标识符
   /// [startDate] 起始日期（包含）
   /// [endDate] 结束日期（包含）
-  Future<List<DiaryEntry>> getEntriesByDateRange(
+  Future<List<diary_domain.DiaryEntry>> getEntriesByDateRange(
     String userId,
     DateTime startDate,
     DateTime endDate,
@@ -128,7 +131,10 @@ class DiaryRepository {
   ///
   /// [userId] 用户唯一标识符
   /// [keyword] 搜索关键词
-  Future<List<DiaryEntry>> searchEntries(String userId, String keyword) async {
+  Future<List<diary_domain.DiaryEntry>> searchEntries(
+    String userId,
+    String keyword,
+  ) async {
     try {
       final rows = await _localDao.searchEntries(userId, keyword);
       return rows.map(_mapRowToDiaryEntry).toList();
@@ -150,21 +156,27 @@ class DiaryRepository {
   /// [entry] 日记领域模型对象（id 应为 null）
   ///
   /// 返回包含数据库生成 ID 的完整日记对象
-  Future<DiaryEntry> createEntry(DiaryEntry entry) async {
+  Future<diary_domain.DiaryEntry> createEntry(
+    diary_domain.DiaryEntry entry,
+  ) async {
     try {
+      final syncedEntry =
+          entry.cloudId == null ? entry.copyWith(cloudId: _uuid.v4()) : entry;
+
       // 步骤 1：写入本地数据库
-      final companion = DiaryEntriesCompanion.insert(
-        content: entry.content,
-        mood: Value(entry.mood?.value),
-        date: entry.date,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-        userId: entry.userId,
+      final companion = db.DiaryEntriesCompanion.insert(
+        cloudId: Value(syncedEntry.cloudId),
+        content: syncedEntry.content,
+        mood: Value(syncedEntry.mood?.value),
+        date: syncedEntry.date,
+        createdAt: syncedEntry.createdAt,
+        updatedAt: syncedEntry.updatedAt,
+        userId: syncedEntry.userId,
       );
       final localId = await _localDao.insertEntry(companion);
 
       // 步骤 2：获取完整的本地记录（包含自增 ID）
-      final savedEntry = entry.copyWith(id: localId);
+      final savedEntry = syncedEntry.copyWith(id: localId);
 
       // 步骤 3：异步推送到云端（不阻塞主流程）
       _syncToCloud(savedEntry);
@@ -183,23 +195,29 @@ class DiaryRepository {
   /// [entry] 要更新的日记对象（必须包含有效 id）
   ///
   /// 返回更新后的日记对象
-  Future<DiaryEntry> updateEntry(DiaryEntry entry) async {
+  Future<diary_domain.DiaryEntry> updateEntry(
+    diary_domain.DiaryEntry entry,
+  ) async {
     try {
+      final syncedEntry =
+          entry.cloudId == null ? entry.copyWith(cloudId: _uuid.v4()) : entry;
+
       // 步骤 1：更新本地数据库
-      final companion = DiaryEntriesCompanion(
-        id: Value(entry.id!),
-        content: Value(entry.content),
-        mood: Value(entry.mood?.value),
-        date: Value(entry.date),
-        updatedAt: Value(entry.updatedAt),
-        userId: Value(entry.userId),
+      final companion = db.DiaryEntriesCompanion(
+        id: Value(syncedEntry.id!),
+        cloudId: Value(syncedEntry.cloudId),
+        content: Value(syncedEntry.content),
+        mood: Value(syncedEntry.mood?.value),
+        date: Value(syncedEntry.date),
+        updatedAt: Value(syncedEntry.updatedAt),
+        userId: Value(syncedEntry.userId),
       );
       await _localDao.updateEntry(companion);
 
       // 步骤 2：异步推送到云端
-      _syncToCloud(entry);
+      _syncToCloud(syncedEntry);
 
-      return entry;
+      return syncedEntry;
     } catch (e) {
       debugPrint('[DiaryRepository] 更新日记失败: $e');
       rethrow;
@@ -214,11 +232,18 @@ class DiaryRepository {
   /// [userId] 用户 ID（用于云端删除的权限校验）
   Future<void> deleteEntry(int id, String userId) async {
     try {
+      final existingRow = await _localDao.getEntryById(id);
+      final existingEntry =
+          existingRow != null ? _mapRowToDiaryEntry(existingRow) : null;
+
       // 步骤 1：从本地数据库删除
       await _localDao.deleteEntry(id);
 
       // 步骤 2：异步从云端删除
-      _deleteFromCloud(id, userId);
+      final cloudId = existingEntry?.cloudId;
+      if (cloudId != null) {
+        _deleteFromCloud(cloudId, userId);
+      }
     } catch (e) {
       debugPrint('[DiaryRepository] 删除日记失败: $e');
       rethrow;
@@ -246,12 +271,21 @@ class DiaryRepository {
           .eq('user_id', userId)
           .order('updated_at', ascending: false);
 
-      final cloudEntries =
-          cloudData.map((json) => DiaryEntry.fromJson(json)).toList();
+      final cloudEntries = cloudData
+          .map(
+            (json) => diary_domain.DiaryEntry.fromJson(
+              Map<String, dynamic>.from(json as Map),
+            ),
+          )
+          .toList();
 
       // 步骤 2：获取本地数据
       final localRows = await _localDao.getAllEntries(userId);
-      final localEntries = localRows.map(_mapRowToDiaryEntry).toList();
+      final localEntries = <diary_domain.DiaryEntry>[];
+      for (final row in localRows) {
+        final mapped = _mapRowToDiaryEntry(row);
+        localEntries.add(await _ensureLocalCloudId(mapped));
+      }
 
       // 步骤 3：合并数据 - 以 updatedAt 较新的为准
       await _mergeEntries(localEntries, cloudEntries, userId);
@@ -272,15 +306,16 @@ class DiaryRepository {
   ///
   /// Drift 生成的 DiaryEntry 类（数据库行）与我们的领域模型 DiaryEntry 同名，
   /// 但属于不同的类型。此方法负责类型映射。
-  DiaryEntry _mapRowToDiaryEntry(dynamic row) {
-    return DiaryEntry(
-      id: row.id as int,
-      content: row.content as String,
-      mood: Mood.fromValue(row.mood as String?),
-      date: row.date as DateTime,
-      createdAt: row.createdAt as DateTime,
-      updatedAt: row.updatedAt as DateTime,
-      userId: row.userId as String,
+  diary_domain.DiaryEntry _mapRowToDiaryEntry(db.DiaryEntry row) {
+    return diary_domain.DiaryEntry(
+      id: row.id,
+      cloudId: row.cloudId,
+      content: row.content,
+      mood: diary_domain.Mood.fromValue(row.mood),
+      date: row.date,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      userId: row.userId,
     );
   }
 
@@ -290,10 +325,10 @@ class DiaryRepository {
   /// 该方法不会抛出异常，失败时仅打印日志。
   ///
   /// [entry] 要同步的日记对象
-  Future<void> _syncToCloud(DiaryEntry entry) async {
+  Future<void> _syncToCloud(diary_domain.DiaryEntry entry) async {
     try {
       await _supabaseClient.from(_kDiaryTable).upsert(entry.toJson());
-      debugPrint('[DiaryRepository] 云端同步成功: id=${entry.id}');
+      debugPrint('[DiaryRepository] 云端同步成功: cloudId=${entry.cloudId}');
     } catch (e) {
       debugPrint('[DiaryRepository] 云端同步失败: $e');
     }
@@ -303,17 +338,35 @@ class DiaryRepository {
   ///
   /// [id] 日记条目 ID
   /// [userId] 用户 ID
-  Future<void> _deleteFromCloud(int id, String userId) async {
+  Future<void> _deleteFromCloud(String cloudId, String userId) async {
     try {
       await _supabaseClient
           .from(_kDiaryTable)
           .delete()
-          .eq('id', id)
+          .eq('id', cloudId)
           .eq('user_id', userId);
-      debugPrint('[DiaryRepository] 云端删除成功: id=$id');
+      debugPrint('[DiaryRepository] 云端删除成功: cloudId=$cloudId');
     } catch (e) {
       debugPrint('[DiaryRepository] 云端删除失败: $e');
     }
+  }
+
+  Future<diary_domain.DiaryEntry> _ensureLocalCloudId(
+    diary_domain.DiaryEntry entry,
+  ) async {
+    if (entry.id == null || entry.cloudId != null) {
+      return entry;
+    }
+
+    final cloudId = _uuid.v4();
+    await _localDao.updateEntry(
+      db.DiaryEntriesCompanion(
+        id: Value(entry.id!),
+        cloudId: Value(cloudId),
+      ),
+    );
+
+    return entry.copyWith(cloudId: cloudId);
   }
 
   /// 合并本地与云端数据
@@ -327,19 +380,27 @@ class DiaryRepository {
   /// [cloudEntries] 云端日记列表
   /// [userId] 用户 ID
   Future<void> _mergeEntries(
-    List<DiaryEntry> localEntries,
-    List<DiaryEntry> cloudEntries,
+    List<diary_domain.DiaryEntry> localEntries,
+    List<diary_domain.DiaryEntry> cloudEntries,
     String userId,
   ) async {
     // 构建本地数据的 ID 映射，便于快速查找
-    final localMap = {for (final e in localEntries) e.id: e};
+    final localMap = {
+      for (final e in localEntries)
+        if (e.cloudId != null) e.cloudId!: e,
+    };
     // 构建云端数据的 ID 映射
-    final cloudMap = {for (final e in cloudEntries) e.id: e};
+    final cloudMap = {
+      for (final e in cloudEntries)
+        if (e.cloudId != null) e.cloudId!: e,
+    };
 
     // 情况 1：云端有但本地没有的条目 → 插入本地
     for (final cloudEntry in cloudEntries) {
-      if (cloudEntry.id != null && !localMap.containsKey(cloudEntry.id)) {
-        final companion = DiaryEntriesCompanion.insert(
+      final cloudId = cloudEntry.cloudId;
+      if (cloudId != null && !localMap.containsKey(cloudId)) {
+        final companion = db.DiaryEntriesCompanion.insert(
+          cloudId: Value(cloudId),
           content: cloudEntry.content,
           mood: Value(cloudEntry.mood?.value),
           date: cloudEntry.date,
@@ -353,14 +414,20 @@ class DiaryRepository {
 
     // 情况 2：本地有但云端没有的条目 → 推送到云端
     for (final localEntry in localEntries) {
-      if (localEntry.id != null && !cloudMap.containsKey(localEntry.id)) {
+      final cloudId = localEntry.cloudId;
+      if (cloudId != null && !cloudMap.containsKey(cloudId)) {
         await _syncToCloud(localEntry);
       }
     }
 
     // 情况 3：两边都有的条目 → 以 updatedAt 较新的为准
     for (final localEntry in localEntries) {
-      final cloudEntry = cloudMap[localEntry.id];
+      final cloudId = localEntry.cloudId;
+      if (cloudId == null) {
+        continue;
+      }
+
+      final cloudEntry = cloudMap[cloudId];
       if (cloudEntry == null) continue;
 
       if (localEntry.updatedAt.isAfter(cloudEntry.updatedAt)) {
@@ -368,8 +435,9 @@ class DiaryRepository {
         await _syncToCloud(localEntry);
       } else if (cloudEntry.updatedAt.isAfter(localEntry.updatedAt)) {
         // 云端较新 → 更新本地
-        final companion = DiaryEntriesCompanion(
+        final companion = db.DiaryEntriesCompanion(
           id: Value(localEntry.id!),
+          cloudId: Value(cloudId),
           content: Value(cloudEntry.content),
           mood: Value(cloudEntry.mood?.value),
           date: Value(cloudEntry.date),
@@ -390,8 +458,8 @@ class DiaryRepository {
 ///
 /// 提供 [DiaryDao] 单例实例，依赖 [appDatabaseProvider]。
 final diaryDaoProvider = Provider<DiaryDao>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return DiaryDao(db);
+  final dbInstance = ref.watch(db.appDatabaseProvider);
+  return DiaryDao(dbInstance);
 });
 
 /// DiaryRepository Provider

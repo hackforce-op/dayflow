@@ -160,12 +160,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (!_formKey.currentState!.validate()) return;
 
     ref.read(authProvider.notifier).signUp(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      displayName: _displayNameController.text.trim().isNotEmpty
-          ? _displayNameController.text.trim()
-          : null,
-    );
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          displayName: _displayNameController.text.trim().isNotEmpty
+              ? _displayNameController.text.trim()
+              : null,
+        );
   }
 
   /// 导航到登录页面
@@ -192,7 +192,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-      } else if (next is AuthStateUnauthenticated && previous is AuthStateLoading) {
+      } else if (next is AuthStateAuthenticated) {
+        context.go(RoutePaths.diary);
+      } else if (next is AuthStateUnauthenticated &&
+          previous is AuthStateLoading) {
         // 注册成功但需要邮箱验证
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

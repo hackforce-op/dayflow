@@ -21,9 +21,9 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
-import 'package:dayflow/features/auth/data/auth_repository.dart';
+import 'package:dayflow/features/auth/data/auth_repository.dart' as auth_data;
 import 'package:dayflow/features/auth/domain/user_profile.dart';
 
 // ============================================================
@@ -138,13 +138,13 @@ class AuthStateError extends AuthState {
 /// - 销毁时：自动取消流订阅（通过 [dispose]）
 class AuthNotifier extends StateNotifier<AuthState> {
   /// 认证数据仓库，封装 Supabase Auth 操作
-  final AuthRepository _authRepository;
+  final auth_data.AuthRepository _authRepository;
 
   /// 认证状态变化流的订阅
   ///
   /// 在 [_initialize] 中创建，在 [dispose] 中取消，
   /// 确保不会产生内存泄漏。
-  StreamSubscription<AuthState>? _authSubscription;
+  StreamSubscription<supabase.AuthState>? _authSubscription;
 
   /// 创建认证状态管理器
   ///
@@ -194,13 +194,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// - 其他事件（如 userUpdated）：根据是否有用户更新状态
   ///
   /// [authState] Supabase Auth 发出的认证状态事件
-  void _handleAuthStateChange(AuthState authState) {
+  void _handleAuthStateChange(supabase.AuthState authState) {
     // 注意：此处 AuthState 是 supabase_flutter 包中的类型
     // 因为我们在导入时隐藏了它，这里通过参数类型接收
 
     switch (authState.event) {
-      case AuthChangeEvent.signedIn:
-      case AuthChangeEvent.tokenRefreshed:
+      case supabase.AuthChangeEvent.signedIn:
+      case supabase.AuthChangeEvent.tokenRefreshed:
         // 用户登录成功或 token 已刷新
         final user = authState.session?.user;
         if (user != null) {
@@ -208,10 +208,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
             UserProfile.fromSupabaseUser(user),
           );
         }
-      case AuthChangeEvent.signedOut:
+        return;
+      case supabase.AuthChangeEvent.signedOut:
         // 用户已登出
         state = const AuthStateUnauthenticated();
-      case AuthChangeEvent.userUpdated:
+        return;
+      case supabase.AuthChangeEvent.userUpdated:
         // 用户信息已更新，刷新本地用户资料
         final user = authState.session?.user;
         if (user != null) {
@@ -219,9 +221,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
             UserProfile.fromSupabaseUser(user),
           );
         }
+        return;
       default:
         // 其他事件（如 initialSession、passwordRecovery 等），暂不处理
-        break;
+        return;
     }
   }
 
@@ -261,7 +264,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         state = const AuthStateError('登录成功但未获取到用户信息');
       }
-    } on AuthException catch (e) {
+    } on auth_data.AuthException catch (e) {
       // 认证异常（已转换为中文的错误信息）
       state = AuthStateError(e.message);
     }
@@ -306,7 +309,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         // 需要邮箱验证，提示用户查收邮件
         state = const AuthStateUnauthenticated();
       }
-    } on AuthException catch (e) {
+    } on auth_data.AuthException catch (e) {
       state = AuthStateError(e.message);
     }
   }
@@ -328,7 +331,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _authRepository.signInWithGoogle();
       // 注意：OAuth 登录是异步流程，
       // 实际的状态更新会在 _handleAuthStateChange 中处理
-    } on AuthException catch (e) {
+    } on auth_data.AuthException catch (e) {
       state = AuthStateError(e.message);
     }
   }
@@ -346,7 +349,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await _authRepository.signOut();
       state = const AuthStateUnauthenticated();
-    } on AuthException catch (e) {
+    } on auth_data.AuthException catch (e) {
       state = AuthStateError(e.message);
     }
   }
@@ -383,8 +386,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 ///   password: 'password',
 /// );
 /// ```
-final authProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final repository = ref.watch(authRepositoryProvider);
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  final repository = ref.watch(auth_data.authRepositoryProvider);
   return AuthNotifier(repository);
 });

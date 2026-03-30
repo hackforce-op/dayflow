@@ -109,6 +109,9 @@ class TaskItem {
   /// 新建任务时为 null，保存到数据库后由数据库自动分配。
   final int? id;
 
+  /// Supabase 云端主键（UUID）
+  final String? cloudId;
+
   /// 任务标题
   ///
   /// 简洁描述任务内容的一句话，在任务列表中显示。
@@ -155,6 +158,7 @@ class TaskItem {
   /// 构造函数
   const TaskItem({
     this.id,
+    this.cloudId,
     required this.title,
     this.description,
     this.priority = TaskPriority.medium,
@@ -173,6 +177,7 @@ class TaskItem {
   factory TaskItem.fromMap(Map<String, dynamic> map) {
     return TaskItem(
       id: map['id'] as int?,
+      cloudId: map['cloud_id'] as String?,
       title: map['title'] as String,
       description: map['description'] as String?,
       priority: TaskPriority.fromValue(map['priority'] as int? ?? 2),
@@ -190,8 +195,11 @@ class TaskItem {
   ///
   /// 用于从 Supabase 远程 API 响应中解析任务数据。
   factory TaskItem.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+
     return TaskItem(
-      id: json['id'] as int?,
+      id: rawId is int ? rawId : null,
+      cloudId: rawId is String ? rawId : json['cloud_id'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
       priority: TaskPriority.fromValue(json['priority'] as int? ?? 2),
@@ -210,7 +218,7 @@ class TaskItem {
   /// 用于向 Supabase 远程 API 发送数据。
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'id': id,
+      if (cloudId != null) 'id': cloudId,
       'title': title,
       'description': description,
       'priority': priority.value,
@@ -225,6 +233,7 @@ class TaskItem {
   /// 创建当前对象的副本，并允许修改部分字段
   TaskItem copyWith({
     int? id,
+    String? cloudId,
     String? title,
     String? description,
     TaskPriority? priority,
@@ -236,6 +245,7 @@ class TaskItem {
   }) {
     return TaskItem(
       id: id ?? this.id,
+      cloudId: cloudId ?? this.cloudId,
       title: title ?? this.title,
       description: description ?? this.description,
       priority: priority ?? this.priority,
@@ -258,7 +268,8 @@ class TaskItem {
 
   @override
   String toString() {
-    return 'TaskItem(id: $id, title: $title, status: ${status.value}, '
+    return 'TaskItem(id: $id, cloudId: $cloudId, title: $title, '
+        'status: ${status.value}, '
         'priority: ${priority.value})';
   }
 
@@ -267,6 +278,7 @@ class TaskItem {
     if (identical(this, other)) return true;
     return other is TaskItem &&
         other.id == id &&
+        other.cloudId == cloudId &&
         other.title == title &&
         other.status == status &&
         other.priority == priority &&
@@ -275,6 +287,6 @@ class TaskItem {
 
   @override
   int get hashCode {
-    return Object.hash(id, title, status, priority, userId);
+    return Object.hash(id, cloudId, title, status, priority, userId);
   }
 }

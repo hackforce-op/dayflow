@@ -60,7 +60,7 @@ class NewsDao {
   /// 日期比较只比较年月日。
   ///
   /// [date] 目标日期
-  Future<List<NewsSummarie>> getNewsByDate(DateTime date) {
+  Future<List<NewsSummary>> getNewsByDate(DateTime date) {
     final dayStart = DateTime(date.year, date.month, date.day);
     final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
@@ -82,7 +82,7 @@ class NewsDao {
   /// 返回 Stream，当新闻数据变化时自动发出新列表。
   ///
   /// [date] 目标日期
-  Stream<List<NewsSummarie>> watchNewsByDate(DateTime date) {
+  Stream<List<NewsSummary>> watchNewsByDate(DateTime date) {
     final dayStart = DateTime(date.year, date.month, date.day);
     final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
@@ -105,7 +105,7 @@ class NewsDao {
   ///
   /// [date] 目标日期
   /// [category] 新闻分类标识符（如 'technology', 'finance'）
-  Future<List<NewsSummarie>> getNewsByCategory(
+  Future<List<NewsSummary>> getNewsByCategory(
     DateTime date,
     String category,
   ) {
@@ -130,7 +130,7 @@ class NewsDao {
   ///
   /// [date] 目标日期
   /// [category] 新闻分类标识符
-  Stream<List<NewsSummarie>> watchNewsByCategory(
+  Stream<List<NewsSummary>> watchNewsByCategory(
     DateTime date,
     String category,
   ) {
@@ -154,9 +154,8 @@ class NewsDao {
   /// 根据 ID 获取单条新闻摘要
   ///
   /// [id] 新闻摘要的数据库 ID
-  Future<NewsSummarie?> getNewsById(int id) {
-    return (_db.select(_db.newsSummaries)
-          ..where((t) => t.id.equals(id)))
+  Future<NewsSummary?> getNewsById(int id) {
+    return (_db.select(_db.newsSummaries)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
   }
 
@@ -208,9 +207,7 @@ class NewsDao {
   ///
   /// [id] 新闻摘要的数据库 ID
   Future<int> deleteNews(int id) {
-    return (_db.delete(_db.newsSummaries)
-          ..where((t) => t.id.equals(id)))
-        .go();
+    return (_db.delete(_db.newsSummaries)..where((t) => t.id.equals(id))).go();
   }
 
   /// 删除指定日期之前的所有新闻摘要
@@ -256,8 +253,7 @@ class NewsDao {
   /// 返回被删除的行数（0 或 1）。
   Future<int> removeBookmark(String userId, {required int newsId}) {
     return (_db.delete(_db.newsBookmarks)
-          ..where((t) =>
-              t.userId.equals(userId) & t.newsId.equals(newsId)))
+          ..where((t) => t.userId.equals(userId) & t.newsId.equals(newsId)))
         .go();
   }
 
@@ -269,8 +265,7 @@ class NewsDao {
   /// 返回 true 表示已收藏，false 表示未收藏。
   Future<bool> isBookmarked(String userId, {required int newsId}) async {
     final result = await (_db.select(_db.newsBookmarks)
-          ..where((t) =>
-              t.userId.equals(userId) & t.newsId.equals(newsId)))
+          ..where((t) => t.userId.equals(userId) & t.newsId.equals(newsId)))
         .getSingleOrNull();
     return result != null;
   }
@@ -283,7 +278,7 @@ class NewsDao {
   /// [userId] 用户唯一标识符
   ///
   /// 返回收藏的新闻摘要列表，按收藏时间（书签 ID）降序排列。
-  Future<List<NewsSummarie>> getBookmarkedNews(String userId) async {
+  Future<List<NewsSummary>> getBookmarkedNews(String userId) async {
     /// 使用 Drift 的 JOIN 查询语法
     ///
     /// 将 newsBookmarks 表与 newsSummaries 表通过 newsId 关联，
@@ -313,7 +308,7 @@ class NewsDao {
   /// 返回 Stream，当收藏数据变化时自动发出新列表。
   ///
   /// [userId] 用户唯一标识符
-  Stream<List<NewsSummarie>> watchBookmarkedNews(String userId) {
+  Stream<List<NewsSummary>> watchBookmarkedNews(String userId) {
     final query = _db.select(_db.newsSummaries).join([
       innerJoin(
         _db.newsBookmarks,
@@ -328,9 +323,8 @@ class NewsDao {
         ),
       ]);
 
-    return query
-        .watch()
-        .map((rows) => rows.map((r) => r.readTable(_db.newsSummaries)).toList());
+    return query.watch().map(
+        (rows) => rows.map((r) => r.readTable(_db.newsSummaries)).toList());
   }
 
   /// 获取用户收藏的新闻总数

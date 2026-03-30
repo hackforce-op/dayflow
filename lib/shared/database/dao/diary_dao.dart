@@ -94,8 +94,7 @@ class DiaryDao {
   ///
   /// 返回 [Future<DiaryEntry?>]，如果不存在则返回 null。
   Future<DiaryEntry?> getEntryById(int id) {
-    return (_db.select(_db.diaryEntries)
-          ..where((t) => t.id.equals(id)))
+    return (_db.select(_db.diaryEntries)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
   }
 
@@ -170,15 +169,9 @@ class DiaryDao {
   ///
   /// 返回匹配的日记列表，按日期降序排列。
   Future<List<DiaryEntry>> searchEntries(String userId, String keyword) {
-    // 转义 LIKE 通配符，防止用户输入的 % 和 _ 被当作模式匹配字符
-    final escaped = keyword
-        .replaceAll(r'\', r'\\')
-        .replaceAll('%', r'\%')
-        .replaceAll('_', r'\_');
     return (_db.select(_db.diaryEntries)
           ..where((t) =>
-              t.userId.equals(userId) &
-              t.content.like('%$escaped%', escape: r'\'))
+              t.userId.equals(userId) & t.content.like('%${keyword.trim()}%'))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.date,
@@ -247,9 +240,7 @@ class DiaryDao {
   ///
   /// 返回 [Future<int>]，包含被删除的行数（0 或 1）。
   Future<int> deleteEntry(int id) {
-    return (_db.delete(_db.diaryEntries)
-          ..where((t) => t.id.equals(id)))
-        .go();
+    return (_db.delete(_db.diaryEntries)..where((t) => t.id.equals(id))).go();
   }
 
   /// 删除指定用户的所有日记条目
@@ -261,8 +252,7 @@ class DiaryDao {
   ///
   /// 返回 [Future<int>]，包含被删除的总行数。
   Future<int> deleteAllEntries(String userId) {
-    return (_db.delete(_db.diaryEntries)
-          ..where((t) => t.userId.equals(userId)))
+    return (_db.delete(_db.diaryEntries)..where((t) => t.userId.equals(userId)))
         .go();
   }
 }

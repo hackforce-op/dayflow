@@ -17,6 +17,7 @@
 /// - [authRepositoryProvider]：全局认证仓库实例
 /// ============================================================================
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -82,6 +83,14 @@ class AuthRepository {
   /// [auth] Supabase 的 [GoTrueClient] 实例，
   /// 通常通过 Riverpod Provider 注入。
   AuthRepository(this._auth);
+
+  String _buildRedirectUrl() {
+    if (kIsWeb) {
+      return Uri.base.removeFragment().replace(queryParameters: {}).toString();
+    }
+
+    return 'io.supabase.dayflow://login-callback/';
+  }
 
   // ============================================================
   // 登录方法
@@ -156,7 +165,7 @@ class AuthRepository {
       // - Supabase 控制台: Authentication → URL Configuration → Redirect URLs
       await _auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'io.supabase.dayflow://login-callback/',
+        redirectTo: _buildRedirectUrl(),
       );
     } on AuthApiException catch (e) {
       throw AuthException(
@@ -205,6 +214,7 @@ class AuthRepository {
       final response = await _auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: _buildRedirectUrl(),
         // 将显示名称保存到 Supabase 的 user_metadata
         // 这些数据会在每次认证时自动返回
         data: displayName != null ? {'display_name': displayName} : null,

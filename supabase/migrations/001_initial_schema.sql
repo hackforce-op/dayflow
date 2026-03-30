@@ -3,9 +3,6 @@
 /// 创建核心数据表：profiles、diary_entries、tasks、news_summaries、news_bookmarks
 /// 包含行级安全策略 (RLS) 确保数据隔离
 
--- 启用行级安全
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
-
 -- ============================================================
 -- 用户扩展信息表
 -- ============================================================
@@ -33,10 +30,10 @@ CREATE POLICY "Users can insert own profile"
 -- ============================================================
 CREATE TABLE IF NOT EXISTS diary_entries (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  content     JSONB NOT NULL,
+  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  content     TEXT NOT NULL,
   mood        TEXT,
-  date        DATE NOT NULL,
+  date        TIMESTAMPTZ NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -51,12 +48,12 @@ CREATE POLICY "Users can CRUD own diary entries"
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tasks (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   title       TEXT NOT NULL,
   description TEXT,
   priority    SMALLINT DEFAULT 2,
   status      TEXT DEFAULT 'todo',
-  due_date    DATE,
+  due_date    TIMESTAMPTZ,
   sort_order  INTEGER DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );

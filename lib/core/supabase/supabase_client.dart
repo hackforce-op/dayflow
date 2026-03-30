@@ -35,6 +35,8 @@ import 'package:dayflow/core/constants/app_constants.dart';
 /// }
 /// ```
 Future<void> initializeSupabase() async {
+  AppConstants.validateSupabaseConfiguration();
+
   await Supabase.initialize(
     url: AppConstants.supabaseUrl,
     anonKey: AppConstants.supabaseAnonKey,

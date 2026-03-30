@@ -17,6 +17,21 @@ import 'package:flutter/material.dart';
 /// 提供浅色和深色两套主题，均基于 Material 3 设计规范。
 /// 通过静态方法和 getter 访问主题数据，不可实例化。
 abstract class AppTheme {
+  static const String _fontFamily = 'NotoSansCJKsc';
+  static const List<String> _fontFamilyFallback = <String>[
+    'Noto Sans CJK SC',
+    'Noto Sans SC',
+    'Source Han Sans SC',
+    'Microsoft YaHei',
+    'PingFang SC',
+    'Heiti SC',
+    'WenQuanYi Micro Hei',
+    'Noto Color Emoji',
+    'Segoe UI Emoji',
+    'Apple Color Emoji',
+    'sans-serif',
+  ];
+
   // ============================================================
   // 品牌颜色定义
   // ============================================================
@@ -56,6 +71,7 @@ abstract class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      fontFamily: _fontFamily,
       brightness: Brightness.light,
 
       // AppBar 主题：使用表面色背景，主色标题
@@ -64,7 +80,7 @@ abstract class AppTheme {
         elevation: 0,
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
-        titleTextStyle: TextStyle(
+        titleTextStyle: _textStyle(
           color: colorScheme.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -167,6 +183,7 @@ abstract class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      fontFamily: _fontFamily,
       brightness: Brightness.dark,
 
       // AppBar 主题：深色背景
@@ -175,7 +192,7 @@ abstract class AppTheme {
         elevation: 0,
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
-        titleTextStyle: TextStyle(
+        titleTextStyle: _textStyle(
           color: colorScheme.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -266,80 +283,98 @@ abstract class AppTheme {
   ///
   /// 根据传入的颜色方案自动适配文字颜色，
   /// 确保在浅色和深色主题下都有良好的可读性。
+  static TextStyle _textStyle({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? letterSpacing,
+    double? height,
+  }) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
+  }
+
   static TextTheme _buildTextTheme(ColorScheme colorScheme) {
     return TextTheme(
       // 大标题 - 用于页面主标题
-      headlineLarge: TextStyle(
+      headlineLarge: _textStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: colorScheme.onSurface,
         letterSpacing: -0.5,
       ),
       // 中标题 - 用于区块标题
-      headlineMedium: TextStyle(
+      headlineMedium: _textStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: colorScheme.onSurface,
       ),
       // 小标题 - 用于卡片标题
-      headlineSmall: TextStyle(
+      headlineSmall: _textStyle(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: colorScheme.onSurface,
       ),
       // 大标签 - 用于列表项标题
-      titleLarge: TextStyle(
+      titleLarge: _textStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: colorScheme.onSurface,
       ),
       // 中标签 - 用于次要标题
-      titleMedium: TextStyle(
+      titleMedium: _textStyle(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: colorScheme.onSurface,
       ),
       // 小标签
-      titleSmall: TextStyle(
+      titleSmall: _textStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: colorScheme.onSurfaceVariant,
       ),
       // 正文大
-      bodyLarge: TextStyle(
+      bodyLarge: _textStyle(
         fontSize: 16,
         fontWeight: FontWeight.normal,
         color: colorScheme.onSurface,
         height: 1.5,
       ),
       // 正文中 - 默认正文样式
-      bodyMedium: TextStyle(
+      bodyMedium: _textStyle(
         fontSize: 14,
         fontWeight: FontWeight.normal,
         color: colorScheme.onSurface,
         height: 1.5,
       ),
       // 正文小
-      bodySmall: TextStyle(
+      bodySmall: _textStyle(
         fontSize: 12,
         fontWeight: FontWeight.normal,
         color: colorScheme.onSurfaceVariant,
         height: 1.4,
       ),
       // 标签大
-      labelLarge: TextStyle(
+      labelLarge: _textStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: colorScheme.onSurface,
       ),
       // 标签中
-      labelMedium: TextStyle(
+      labelMedium: _textStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: colorScheme.onSurfaceVariant,
       ),
       // 标签小
-      labelSmall: TextStyle(
+      labelSmall: _textStyle(
         fontSize: 11,
         fontWeight: FontWeight.w500,
         color: colorScheme.onSurfaceVariant,

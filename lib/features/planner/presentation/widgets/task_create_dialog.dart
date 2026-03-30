@@ -5,6 +5,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/planner/domain/task_item.dart';
 import 'package:dayflow/features/planner/data/task_repository.dart';
 import 'package:dayflow/features/planner/providers/task_provider.dart';
@@ -66,21 +68,24 @@ class _TaskCreateDialogState extends ConsumerState<TaskCreateDialog> {
                 ChoiceChip(
                   label: const Text('高'),
                   selected: _priority == TaskPriority.high,
-                  onSelected: (_) => setState(() => _priority = TaskPriority.high),
+                  onSelected: (_) =>
+                      setState(() => _priority = TaskPriority.high),
                   selectedColor: Colors.red.shade100,
                 ),
                 const SizedBox(width: 4),
                 ChoiceChip(
                   label: const Text('中'),
                   selected: _priority == TaskPriority.medium,
-                  onSelected: (_) => setState(() => _priority = TaskPriority.medium),
+                  onSelected: (_) =>
+                      setState(() => _priority = TaskPriority.medium),
                   selectedColor: Colors.orange.shade100,
                 ),
                 const SizedBox(width: 4),
                 ChoiceChip(
                   label: const Text('低'),
                   selected: _priority == TaskPriority.low,
-                  onSelected: (_) => setState(() => _priority = TaskPriority.low),
+                  onSelected: (_) =>
+                      setState(() => _priority = TaskPriority.low),
                   selectedColor: Colors.blue.shade100,
                 ),
               ],
@@ -120,9 +125,20 @@ class _TaskCreateDialogState extends ConsumerState<TaskCreateDialog> {
   }
 
   /// 创建任务
-  void _createTask() {
+  Future<void> _createTask() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
+
+    final authState = ref.read(authProvider);
+    if (authState is! AuthStateAuthenticated) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先登录后再创建任务')),
+      );
+      return;
+    }
 
     final task = TaskItem(
       title: title,
@@ -134,12 +150,16 @@ class _TaskCreateDialogState extends ConsumerState<TaskCreateDialog> {
       dueDate: _dueDate,
       sortOrder: 0,
       createdAt: DateTime.now(),
-      userId: '', // 由 repository 层填充
+      userId: authState.userProfile.id,
     );
 
-    ref.read(taskRepositoryProvider).createTask(task).then((_) {
-      ref.read(taskListProvider.notifier).loadTodayTasks();
-      Navigator.pop(context);
-    });
+    await ref.read(taskRepositoryProvider).createTask(task);
+    await ref.read(taskListProvider.notifier).loadTodayTasks();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pop(context);
   }
 }

@@ -19,10 +19,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:dayflow/features/diary/presentation/pages/diary_edit_page.dart';
+import 'package:dayflow/features/diary/presentation/pages/diary_list_page.dart';
 import 'package:dayflow/shared/widgets/app_bottom_nav.dart';
 import 'package:dayflow/features/auth/presentation/pages/login_page.dart';
 import 'package:dayflow/features/auth/presentation/pages/register_page.dart';
 import 'package:dayflow/features/auth/presentation/pages/splash_page.dart';
+import 'package:dayflow/features/news/presentation/pages/news_page.dart';
+import 'package:dayflow/features/planner/presentation/pages/planner_page.dart';
 
 // ============================================================
 // 路由路径常量
@@ -97,8 +101,7 @@ GoRouter createRouter(Ref ref) {
 
       // 认证相关页面的路径集合
       final isAuthRoute =
-          currentPath == RoutePaths.login ||
-          currentPath == RoutePaths.register;
+          currentPath == RoutePaths.login || currentPath == RoutePaths.register;
 
       // 是否在闪屏页
       final isSplashRoute = currentPath == RoutePaths.splash;
@@ -155,8 +158,7 @@ GoRouter createRouter(Ref ref) {
       ShellRoute(
         builder: (context, state, child) {
           // 根据当前路径计算选中的标签索引
-          final currentIndex =
-              calculateSelectedIndex(state.matchedLocation);
+          final currentIndex = calculateSelectedIndex(state.matchedLocation);
 
           return Scaffold(
             // 子路由的页面内容
@@ -172,23 +174,21 @@ GoRouter createRouter(Ref ref) {
           GoRoute(
             path: RoutePaths.diary,
             name: 'diary',
-            builder: (context, state) =>
-                const _PlaceholderPage(title: '日记'),
+            builder: (context, state) => const DiaryListPage(),
             routes: [
               // 新建日记
               GoRoute(
                 path: 'edit',
                 name: 'diary-new',
-                builder: (context, state) =>
-                    const _PlaceholderPage(title: '新建日记'),
+                builder: (context, state) => const DiaryEditPage(),
               ),
               // 编辑已有日记（通过路径参数传递日记 ID）
               GoRoute(
                 path: 'edit/:id',
                 name: 'diary-edit',
                 builder: (context, state) {
-                  final id = state.pathParameters['id'] ?? '';
-                  return _PlaceholderPage(title: '编辑日记: $id');
+                  final id = int.tryParse(state.pathParameters['id'] ?? '');
+                  return DiaryEditPage(diaryId: id);
                 },
               ),
             ],
@@ -198,16 +198,14 @@ GoRouter createRouter(Ref ref) {
           GoRoute(
             path: RoutePaths.planner,
             name: 'planner',
-            builder: (context, state) =>
-                const _PlaceholderPage(title: '规划'),
+            builder: (context, state) => const PlannerPage(),
           ),
 
           // 新闻页
           GoRoute(
             path: RoutePaths.news,
             name: 'news',
-            builder: (context, state) =>
-                const _PlaceholderPage(title: '新闻'),
+            builder: (context, state) => const NewsPage(),
           ),
         ],
       ),
@@ -230,50 +228,3 @@ GoRouter createRouter(Ref ref) {
 final routerProvider = Provider<GoRouter>((ref) {
   return createRouter(ref);
 });
-
-// ============================================================
-// 占位页面（Phase 0 阶段使用）
-// ============================================================
-
-/// 占位页面
-///
-/// 在 Phase 0 阶段，各功能模块尚未实现，
-/// 使用此占位页面显示路由名称，验证路由配置是否正确。
-/// 后续开发中将替换为真正的功能页面。
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.title});
-
-  /// 页面标题，显示在 AppBar 和页面中心
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.construction,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '功能开发中...',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -4,6 +4,8 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/planner/domain/task_item.dart';
 import 'package:dayflow/features/planner/data/task_repository.dart';
 
@@ -36,7 +38,8 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
   final TaskRepository _repository;
   final String _userId;
 
-  TaskListNotifier(this._repository, this._userId) : super(const TaskListLoading());
+  TaskListNotifier(this._repository, this._userId)
+      : super(const TaskListLoading());
 
   /// 加载所有任务
   Future<void> loadTasks() async {
@@ -94,8 +97,18 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
 final taskListProvider =
     StateNotifierProvider<TaskListNotifier, TaskListState>((ref) {
   final repository = ref.watch(taskRepositoryProvider);
-  // userId 默认为空，实际使用时应从 auth provider 获取
-  return TaskListNotifier(repository, '');
+  final authState = ref.watch(authProvider);
+  final userId = switch (authState) {
+    AuthStateAuthenticated(:final userProfile) => userProfile.id,
+    _ => '',
+  };
+
+  final notifier = TaskListNotifier(repository, userId);
+  if (userId.isNotEmpty) {
+    Future.microtask(notifier.loadTodayTasks);
+  }
+
+  return notifier;
 });
 
 /// 当前筛选的任务状态

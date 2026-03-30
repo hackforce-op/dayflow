@@ -29,7 +29,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'connection/native.dart';
+import 'connection/connection.dart';
 
 // Drift 代码生成器会生成此文件
 // 运行 `dart run build_runner build` 以生成
@@ -57,6 +57,13 @@ part 'database.g.dart';
 class DiaryEntries extends Table {
   /// 自增主键 - 日记条目的唯一标识符
   IntColumn get id => integer().autoIncrement()();
+
+  /// 云端主键 ID（Supabase UUID）
+  ///
+  /// 本地 SQLite 与云端 Supabase 使用不同的主键策略：
+  /// - 本地使用自增整数，便于 Drift 查询和关联
+  /// - 云端使用稳定 UUID，支持多设备同步
+  TextColumn get cloudId => text().nullable()();
 
   /// 日记正文内容
   ///
@@ -116,6 +123,9 @@ class DiaryEntries extends Table {
 class Tasks extends Table {
   /// 自增主键 - 任务的唯一标识符
   IntColumn get id => integer().autoIncrement()();
+
+  /// 云端主键 ID（Supabase UUID）
+  TextColumn get cloudId => text().nullable()();
 
   /// 任务标题
   ///
@@ -263,23 +273,24 @@ class AppDatabase extends _$AppDatabase {
   /// 构造函数
   ///
   /// 接收一个 [QueryExecutor] 参数，由平台特定的连接工厂提供。
-  /// - 移动端/桌面端：使用 [createNativeConnection] 创建 SQLite 文件连接
-  /// - Web 端：未来可使用 sql.js 或 IndexedDB 实现
+  /// - 移动端/桌面端：使用本地 SQLite 文件连接
+  /// - Web 端：使用 drift 的 `WebDatabase` 持久化到浏览器存储
   AppDatabase(super.e);
 
-  /// 使用原生 SQLite 连接创建数据库实例
+  /// 根据运行平台创建数据库实例
   ///
-  /// 这是推荐的创建方式，内部调用 [createNativeConnection]
-  /// 来获取平台对应的数据库文件路径和连接。
-  AppDatabase.native() : super(createNativeConnection());
+  /// 这是推荐的创建方式，内部会根据平台自动切换连接实现。
+  AppDatabase.platform() : super(createDatabaseConnection());
 
   /// 数据库 Schema 版本号
   ///
-  /// 当前版本为 1（初始版本）。
+  /// 当前版本为 2。
+  ///
+  /// v2 新增 `cloudId` 字段，用于将本地自增 ID 与 Supabase UUID 解耦。
   /// 每次修改表结构时需要递增此版本号，并在 [migration] 中
   /// 编写对应的数据迁移逻辑。
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   /// 数据库迁移策略
   ///
@@ -305,6 +316,18 @@ class AppDatabase extends _$AppDatabase {
         onCreate: (Migrator m) async {
           await m.createAll();
         },
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            await m.addColumn(
+              diaryEntries,
+              diaryEntries.cloudId as GeneratedColumn<Object>,
+            );
+            await m.addColumn(
+              tasks,
+              tasks.cloudId as GeneratedColumn<Object>,
+            );
+          }
+        },
       );
 }
 
@@ -325,8 +348,8 @@ class AppDatabase extends _$AppDatabase {
 ///
 /// 注意：使用懒加载单例模式（lazy singleton），数据库只在首次访问时创建。
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  /// 创建原生 SQLite 数据库连接
-  final database = AppDatabase.native();
+  /// 根据平台自动创建数据库连接
+  final database = AppDatabase.platform();
 
   /// 当 Provider 被销毁时（通常是应用关闭时），关闭数据库连接
   /// 释放底层 SQLite 资源，防止文件锁残留

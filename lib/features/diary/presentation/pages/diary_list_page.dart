@@ -6,6 +6,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/diary/providers/diary_provider.dart';
 import 'package:dayflow/features/diary/presentation/widgets/diary_card.dart';
 
@@ -31,15 +33,6 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
   final _searchController = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    // 页面初始化时加载日记列表
-    Future.microtask(() {
-      ref.read(diaryListProvider.notifier).loadEntries();
-    });
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -47,8 +40,23 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final diaryState = ref.watch(diaryListProvider);
+    final authState = ref.watch(authProvider);
     final theme = Theme.of(context);
+
+    if (authState is AuthStateInitial || authState is AuthStateLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (authState is! AuthStateAuthenticated) {
+      return const Scaffold(
+        body: Center(child: Text('请先登录后查看日记')),
+      );
+    }
+
+    final userId = authState.userProfile.id;
+    final diaryState = ref.watch(diaryListProvider(userId));
 
     return Scaffold(
       appBar: AppBar(
@@ -61,7 +69,7 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
                   border: InputBorder.none,
                 ),
                 onSubmitted: (value) {
-                  ref.read(diaryListProvider.notifier).searchEntries(value);
+                  ref.read(diaryListProvider(userId).notifier).search(value);
                 },
               )
             : const Text('我的日记'),
@@ -74,7 +82,7 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
                 _isSearching = !_isSearching;
                 if (!_isSearching) {
                   _searchController.clear();
-                  ref.read(diaryListProvider.notifier).loadEntries();
+                  ref.read(diaryListProvider(userId).notifier).loadEntries();
                 }
               });
             },
@@ -86,27 +94,29 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
           ),
         ],
       ),
-      body: _buildBody(diaryState, theme),
+      body: _buildBody(diaryState, theme, userId),
       // 新建日记浮动按钮
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/diary/new'),
+        onPressed: () => context.push('/diary/edit'),
         child: const Icon(Icons.add),
       ),
     );
   }
 
   /// 根据状态构建页面主体
-  Widget _buildBody(DiaryListState state, ThemeData theme) {
+  Widget _buildBody(DiaryListState state, ThemeData theme, String userId) {
     return switch (state) {
       DiaryListLoading() => const Center(child: CircularProgressIndicator()),
       DiaryListError(message: final msg) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('加载失败: $msg', style: TextStyle(color: theme.colorScheme.error)),
+              Text('加载失败: $msg',
+                  style: TextStyle(color: theme.colorScheme.error)),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => ref.read(diaryListProvider.notifier).loadEntries(),
+                onPressed: () =>
+                    ref.read(diaryListProvider(userId).notifier).loadEntries(),
                 child: const Text('重试'),
               ),
             ],
@@ -115,7 +125,8 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
       DiaryListData(entries: final entries) => entries.isEmpty
           ? const Center(child: Text('还没有日记，点击 + 开始写第一篇吧！'))
           : RefreshIndicator(
-              onRefresh: () => ref.read(diaryListProvider.notifier).syncAndRefresh(),
+              onRefresh: () =>
+                  ref.read(diaryListProvider(userId).notifier).syncAndRefresh(),
               child: ListView.builder(
                 padding: const EdgeInsets.only(top: 8, bottom: 80),
                 itemCount: entries.length,
@@ -125,8 +136,9 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
                     entry: entry,
                     onTap: () => context.push('/diary/edit/${entry.id}'),
                     onDelete: () {
-                      ref.read(diaryEditorProvider.notifier).deleteEntry(entry.id!);
-                      ref.read(diaryListProvider.notifier).loadEntries();
+                      ref
+                          .read(diaryListProvider(userId).notifier)
+                          .deleteEntry(entry.id!);
                     },
                   );
                 },
@@ -144,7 +156,14 @@ class _DiaryListPageState extends ConsumerState<DiaryListPage> {
       locale: const Locale('zh', 'CN'),
     );
     if (picked != null) {
-      ref.read(diaryListProvider.notifier).loadByDateRange(
+      final authState = ref.read(authProvider);
+      if (authState is! AuthStateAuthenticated) {
+        return;
+      }
+
+      ref
+          .read(diaryListProvider(authState.userProfile.id).notifier)
+          .loadByDateRange(
             picked.start,
             picked.end,
           );
