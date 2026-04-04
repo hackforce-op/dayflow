@@ -60,6 +60,7 @@ class TaskDao {
                   expression: t.priority,
                   mode: OrderingMode.asc,
                 ),
+
             /// 再按自定义排序序号
             (t) => OrderingTerm(
                   expression: t.sortOrder,
@@ -114,8 +115,7 @@ class TaskDao {
   /// 返回按优先级和排序序号排列的任务列表。
   Future<List<Task>> getTasksByStatus(String userId, String status) {
     return (_db.select(_db.tasks)
-          ..where(
-              (t) => t.userId.equals(userId) & t.status.equals(status))
+          ..where((t) => t.userId.equals(userId) & t.status.equals(status))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.priority,
@@ -138,8 +138,7 @@ class TaskDao {
   /// [status] 任务状态字符串（'todo' / 'in_progress' / 'done'）
   Stream<List<Task>> watchTasksByStatus(String userId, String status) {
     return (_db.select(_db.tasks)
-          ..where(
-              (t) => t.userId.equals(userId) & t.status.equals(status))
+          ..where((t) => t.userId.equals(userId) & t.status.equals(status))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.priority,
@@ -168,8 +167,9 @@ class TaskDao {
     return (_db.select(_db.tasks)
           ..where((t) =>
               t.userId.equals(userId) &
-              t.dueDate.isBiggerOrEqualValue(dayStart) &
-              t.dueDate.isSmallerOrEqualValue(dayEnd))
+              (t.dueDate.isNull() |
+                  (t.dueDate.isBiggerOrEqualValue(dayStart) &
+                      t.dueDate.isSmallerOrEqualValue(dayEnd))))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.priority,
@@ -194,8 +194,9 @@ class TaskDao {
     return (_db.select(_db.tasks)
           ..where((t) =>
               t.userId.equals(userId) &
-              t.dueDate.isBiggerOrEqualValue(dayStart) &
-              t.dueDate.isSmallerOrEqualValue(dayEnd))
+              (t.dueDate.isNull() |
+                  (t.dueDate.isBiggerOrEqualValue(dayStart) &
+                      t.dueDate.isSmallerOrEqualValue(dayEnd))))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.priority,
@@ -247,8 +248,7 @@ class TaskDao {
   ///
   /// 返回 true 表示更新成功，false 表示未找到记录。
   Future<bool> updateTask(TasksCompanion task) {
-    return (_db.update(_db.tasks)
-          ..where((t) => t.id.equals(task.id.value)))
+    return (_db.update(_db.tasks)..where((t) => t.id.equals(task.id.value)))
         .write(task)
         .then((rows) => rows > 0);
   }
@@ -289,8 +289,7 @@ class TaskDao {
   Future<void> updateSortOrders(Map<int, int> updates) {
     return _db.transaction(() async {
       for (final entry in updates.entries) {
-        await (_db.update(_db.tasks)
-              ..where((t) => t.id.equals(entry.key)))
+        await (_db.update(_db.tasks)..where((t) => t.id.equals(entry.key)))
             .write(TasksCompanion(sortOrder: Value(entry.value)));
       }
     });
@@ -315,9 +314,7 @@ class TaskDao {
   ///
   /// [userId] 用户唯一标识符
   Future<int> deleteAllTasks(String userId) {
-    return (_db.delete(_db.tasks)
-          ..where((t) => t.userId.equals(userId)))
-        .go();
+    return (_db.delete(_db.tasks)..where((t) => t.userId.equals(userId))).go();
   }
 
   /// 删除指定状态的所有任务
@@ -328,8 +325,7 @@ class TaskDao {
   /// [status] 要删除的任务状态
   Future<int> deleteTasksByStatus(String userId, String status) {
     return (_db.delete(_db.tasks)
-          ..where(
-              (t) => t.userId.equals(userId) & t.status.equals(status)))
+          ..where((t) => t.userId.equals(userId) & t.status.equals(status)))
         .go();
   }
 }

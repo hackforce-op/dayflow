@@ -9,6 +9,7 @@
 /// 领域模型是业务逻辑的核心，不依赖任何外部框架（如数据库、网络等）。
 /// 它在 UI 层和数据层之间充当桥梁，确保数据的一致性和类型安全。
 /// ============================================================================
+library;
 
 /// 心情枚举
 ///
@@ -96,6 +97,8 @@ enum Mood {
 /// );
 /// ```
 class DiaryEntry {
+  static const Object _unset = Object();
+
   /// 日记条目的唯一标识符（数据库自增主键）
   ///
   /// 新建日记时为 null，保存到数据库后由数据库自动分配。
@@ -134,15 +137,27 @@ class DiaryEntry {
   /// 对应 Supabase Auth 中的用户 ID，用于数据隔离和同步。
   final String userId;
 
-  /// 构造函数
+  /// 地理位置坐标（可选），格式："纬度,经度"
   ///
-  /// [id] 可选，新建时为 null
-  /// [content] 必填，日记正文
-  /// [mood] 可选，心情状态
-  /// [date] 必填，日记所属日期
-  /// [createdAt] 必填，创建时间
-  /// [updatedAt] 必填，更新时间
-  /// [userId] 必填，所属用户 ID
+  /// 记录写日记时的当前地理位置，在列表页展示于每条记录底部。
+  final String? location;
+
+  /// 位置地名（可选），geocoding 解析后的可读地址
+  ///
+  /// 例如："酸奶紫米露(西华记忆店)西华..."
+  final String? locationName;
+
+  /// 图片 URL 列表（可选），以英文逗号分隔存储
+  ///
+  /// 日记中插入的图片地址集合，列表页取第一张作为封面缩略图显示。
+  final String? imageUrls;
+
+  /// 所属日记本 ID（可选）
+  ///
+  /// 为 null 表示未分类日记。
+  final int? notebookId;
+
+  /// 构造函数
   const DiaryEntry({
     this.id,
     this.cloudId,
@@ -152,6 +167,10 @@ class DiaryEntry {
     required this.createdAt,
     required this.updatedAt,
     required this.userId,
+    this.location,
+    this.locationName,
+    this.imageUrls,
+    this.notebookId,
   });
 
   /// 从数据库行数据创建 [DiaryEntry]
@@ -161,6 +180,8 @@ class DiaryEntry {
   ///
   /// [map] 数据库查询返回的键值对
   factory DiaryEntry.fromMap(Map<String, dynamic> map) {
+    final rawNotebookId = map['notebook_id'];
+
     return DiaryEntry(
       id: map['id'] as int?,
       cloudId: map['cloud_id'] as String?,
@@ -170,6 +191,12 @@ class DiaryEntry {
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       userId: map['user_id'] as String,
+      location: map['location'] as String?,
+      locationName: map['location_name'] as String?,
+      imageUrls: map['image_urls'] as String?,
+      notebookId: rawNotebookId is int
+          ? rawNotebookId
+          : int.tryParse(rawNotebookId?.toString() ?? ''),
     );
   }
 
@@ -181,16 +208,23 @@ class DiaryEntry {
   /// [json] API 返回的 JSON 对象
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'];
+    final rawNotebookId = json['notebook_id'];
 
     return DiaryEntry(
       id: rawId is int ? rawId : null,
       cloudId: rawId is String ? rawId : json['cloud_id'] as String?,
       content: json['content'] as String,
       mood: Mood.fromValue(json['mood'] as String?),
-      date: DateTime.parse(json['date'] as String),
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      date: DateTime.parse(json['date'] as String).toLocal(),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
       userId: json['user_id'] as String,
+      location: json['location'] as String?,
+      locationName: json['location_name'] as String?,
+      imageUrls: json['image_urls'] as String?,
+      notebookId: rawNotebookId is int
+          ? rawNotebookId
+          : int.tryParse(rawNotebookId?.toString() ?? ''),
     );
   }
 
@@ -199,15 +233,20 @@ class DiaryEntry {
   /// 用于向 Supabase 远程 API 发送数据。
   /// 输出的键名采用 snake_case 格式。
   /// 注意：[id] 字段不包含在输出中，因为它由服务端自动生成。
+  /// location / location_name / image_urls 始终包含（即使为 null），
+  /// 确保云端同步时不会因字段缺失而丢失已有数据。
   Map<String, dynamic> toJson() {
     return {
       if (cloudId != null) 'id': cloudId,
       'content': content,
       'mood': mood?.value,
-      'date': date.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'date': date.toUtc().toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
       'user_id': userId,
+      'location': location,
+      'location_name': locationName,
+      'image_urls': imageUrls,
     };
   }
 
@@ -215,33 +254,39 @@ class DiaryEntry {
   ///
   /// 由于 [DiaryEntry] 是不可变的，修改时需要创建新实例。
   /// 未指定的字段将保留原始值。
-  ///
-  /// 示例：
-  /// ```dart
-  /// final updated = entry.copyWith(
-  ///   content: '修改后的内容',
-  ///   updatedAt: DateTime.now(),
-  /// );
-  /// ```
   DiaryEntry copyWith({
     int? id,
-    String? cloudId,
+    Object? cloudId = _unset,
     String? content,
-    Mood? mood,
+    Object? mood = _unset,
     DateTime? date,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? userId,
+    Object? location = _unset,
+    Object? locationName = _unset,
+    Object? imageUrls = _unset,
+    Object? notebookId = _unset,
   }) {
     return DiaryEntry(
       id: id ?? this.id,
-      cloudId: cloudId ?? this.cloudId,
+      cloudId: identical(cloudId, _unset) ? this.cloudId : cloudId as String?,
       content: content ?? this.content,
-      mood: mood ?? this.mood,
+      mood: identical(mood, _unset) ? this.mood : mood as Mood?,
       date: date ?? this.date,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       userId: userId ?? this.userId,
+      location:
+          identical(location, _unset) ? this.location : location as String?,
+      locationName: identical(locationName, _unset)
+          ? this.locationName
+          : locationName as String?,
+      imageUrls:
+          identical(imageUrls, _unset) ? this.imageUrls : imageUrls as String?,
+      notebookId: identical(notebookId, _unset)
+          ? this.notebookId
+          : notebookId as int?,
     );
   }
 
@@ -261,11 +306,12 @@ class DiaryEntry {
         other.content == content &&
         other.mood == mood &&
         other.date == date &&
-        other.userId == userId;
+        other.userId == userId &&
+        other.notebookId == notebookId;
   }
 
   @override
   int get hashCode {
-    return Object.hash(id, cloudId, content, mood, date, userId);
+    return Object.hash(id, cloudId, content, mood, date, userId, notebookId);
   }
 }

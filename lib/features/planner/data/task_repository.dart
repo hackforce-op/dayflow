@@ -15,6 +15,8 @@ import 'package:dayflow/features/planner/domain/task_item.dart';
 import 'package:dayflow/shared/database/database.dart';
 import 'package:dayflow/shared/database/dao/task_dao.dart';
 
+const _kTaskTable = 'tasks';
+
 /// 任务 DAO 的 Riverpod Provider
 final taskDaoProvider = Provider<TaskDao>((ref) {
   final db = ref.watch(appDatabaseProvider);
@@ -143,10 +145,46 @@ class TaskRepository {
     }
   }
 
+  /// 同步云端与本地任务数据
+  Future<void> syncWithCloud(String userId) async {
+    try {
+      final cloudData = await _supabaseClient
+          .from(_kTaskTable)
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      final cloudTasks = cloudData
+          .map(
+            (json) => TaskItem.fromJson(Map<String, dynamic>.from(json as Map)),
+          )
+          .toList();
+
+      final localRows = await _taskDao.getAllTasks(userId);
+      final localTasks = <TaskItem>[];
+      for (final row in localRows) {
+        final mapped = _taskFromRow(row);
+        localTasks.add(await _ensureLocalCloudId(mapped));
+      }
+
+      await _mergeTasks(localTasks, cloudTasks, userId);
+      debugPrint(
+          '[TaskRepository] 同步完成：云端 ${cloudTasks.length} 条，本地 ${localTasks.length} 条');
+    } catch (e) {
+      debugPrint('[TaskRepository] 同步任务失败: $e');
+    }
+  }
+
+  /// 清空指定用户的任务（本地 + 云端）
+  Future<void> clearAllTasksForUser(String userId) async {
+    await _taskDao.deleteAllTasks(userId);
+    await _supabaseClient.from(_kTaskTable).delete().eq('user_id', userId);
+  }
+
   /// 同步单个任务到云端（异步，不阻塞 UI）
   Future<void> _syncTaskToCloud(TaskItem task) async {
     try {
-      await _supabaseClient.from('tasks').upsert(task.toJson());
+      await _supabaseClient.from(_kTaskTable).upsert(task.toJson());
     } catch (e) {
       debugPrint('[TaskRepository] 云端同步失败: $e');
     }
@@ -155,7 +193,7 @@ class TaskRepository {
   Future<void> _deleteTaskFromCloud(String cloudId, String userId) async {
     try {
       await _supabaseClient
-          .from('tasks')
+          .from(_kTaskTable)
           .delete()
           .eq('id', cloudId)
           .eq('user_id', userId);
@@ -178,6 +216,51 @@ class TaskRepository {
     );
 
     return task.copyWith(cloudId: cloudId);
+  }
+
+  Future<void> _mergeTasks(
+    List<TaskItem> localTasks,
+    List<TaskItem> cloudTasks,
+    String userId,
+  ) async {
+    final localMap = {
+      for (final task in localTasks)
+        if (task.cloudId != null) task.cloudId!: task,
+    };
+    final cloudMap = {
+      for (final task in cloudTasks)
+        if (task.cloudId != null) task.cloudId!: task,
+    };
+
+    for (final cloudTask in cloudTasks) {
+      final cloudId = cloudTask.cloudId;
+      if (cloudId == null || localMap.containsKey(cloudId)) {
+        continue;
+      }
+
+      await _taskDao.insertTask(
+        TasksCompanion.insert(
+          cloudId: Value(cloudId),
+          title: cloudTask.title,
+          description: Value(cloudTask.description),
+          priority: Value(cloudTask.priority.value),
+          status: Value(cloudTask.status.value),
+          dueDate: Value(cloudTask.dueDate),
+          sortOrder: Value(cloudTask.sortOrder),
+          createdAt: cloudTask.createdAt,
+          userId: userId,
+        ),
+      );
+    }
+
+    for (final localTask in localTasks) {
+      final cloudId = localTask.cloudId;
+      if (cloudId == null || cloudMap.containsKey(cloudId)) {
+        continue;
+      }
+
+      await _syncTaskToCloud(localTask);
+    }
   }
 
   /// 将数据库行转换为 TaskItem 领域模型

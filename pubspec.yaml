@@ -41,6 +41,15 @@ dependencies:
   intl: ^0.20.2
   uuid: ^4.4.0
   shared_preferences: ^2.2.0
+  file_picker: ^8.0.2
+  http: ^1.2.0
+
+  # 地理位置：获取用户当前位置信息（需 Android/iOS 权限配置）
+  geolocator: ^13.0.0
+
+  # 中国农历日历转换库
+  lunar: ^1.0.0
+  crop_your_image: ^2.0.0
 
 dev_dependencies:
   flutter_test:

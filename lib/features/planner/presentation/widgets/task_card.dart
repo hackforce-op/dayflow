@@ -17,11 +17,19 @@ class TaskCard extends StatelessWidget {
   /// 删除回调
   final VoidCallback? onDelete;
 
+  /// 点击卡片回调
+  final VoidCallback? onTap;
+
+  /// 卡片背景样式标识
+  final String backgroundStyle;
+
   const TaskCard({
     super.key,
     required this.task,
     this.onStatusToggle,
     this.onDelete,
+    this.onTap,
+    this.backgroundStyle = 'aurora',
   });
 
   @override
@@ -48,6 +56,16 @@ class TaskCard extends StatelessWidget {
       TaskPriority.low => Colors.blue,
     };
 
+    final gradient = switch (backgroundStyle) {
+      'sunrise' => const [Color(0xFFFFE2C6), Color(0xFFFFF1E6)],
+      'forest' => const [Color(0xFFD9F0E1), Color(0xFFF1FAF3)],
+      'ocean' => const [Color(0xFFD8EFFF), Color(0xFFF2F8FF)],
+      _ => [
+          theme.colorScheme.surfaceContainerLow,
+          theme.colorScheme.surface,
+        ],
+    };
+
     return Dismissible(
       key: ValueKey(task.id),
       direction: DismissDirection.endToStart,
@@ -60,33 +78,58 @@ class TaskCard extends StatelessWidget {
       onDismissed: (_) => onDelete?.call(),
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: ListTile(
-          // 状态切换图标
-          leading: IconButton(
-            icon: Icon(statusIcon, color: statusColor),
-            onPressed: onStatusToggle,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-          // 任务标题
-          title: Text(
-            task.title,
-            style: isDone
-                ? theme.textTheme.bodyLarge?.copyWith(
-                    decoration: TextDecoration.lineThrough,
-                    color: theme.colorScheme.outline,
+          child: ListTile(
+            onTap: onTap,
+            // 状态切换图标
+            leading: IconButton(
+              icon: Icon(statusIcon, color: statusColor),
+              onPressed: onStatusToggle,
+            ),
+            // 任务标题
+            title: Text(
+              task.title,
+              style: isDone
+                  ? theme.textTheme.bodyLarge?.copyWith(
+                      decoration: TextDecoration.lineThrough,
+                      color: theme.colorScheme.outline,
+                    )
+                  : theme.textTheme.bodyLarge,
+            ),
+            // 描述和截止日期
+            subtitle: task.description != null
+                ? Text(
+                    task.description!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   )
-                : theme.textTheme.bodyLarge,
-          ),
-          // 描述和截止日期
-          subtitle: task.description != null
-              ? Text(task.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
-              : null,
-          // 优先级标识
-          trailing: Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: priorityColor,
-              shape: BoxShape.circle,
+                : null,
+            // 优先级标识 + 删除按钮
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: priorityColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: '删除任务',
+                  onPressed: onDelete,
+                ),
+              ],
             ),
           ),
         ),

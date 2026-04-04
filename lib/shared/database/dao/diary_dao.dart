@@ -64,6 +64,14 @@ class DiaryDao {
                   expression: t.date,
                   mode: OrderingMode.desc,
                 ),
+            (t) => OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.id,
+                  mode: OrderingMode.desc,
+                ),
           ]))
         .get();
   }
@@ -82,6 +90,14 @@ class DiaryDao {
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.date,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.id,
                   mode: OrderingMode.desc,
                 ),
           ]))
@@ -124,6 +140,14 @@ class DiaryDao {
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.date,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.id,
                   mode: OrderingMode.desc,
                 ),
           ]))
@@ -175,6 +199,14 @@ class DiaryDao {
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.date,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+            (t) => OrderingTerm(
+                  expression: t.id,
                   mode: OrderingMode.desc,
                 ),
           ]))

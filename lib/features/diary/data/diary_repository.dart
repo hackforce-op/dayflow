@@ -31,6 +31,7 @@ import 'package:dayflow/shared/database/database.dart' as db;
 
 /// Supabase 中日记表的名称常量
 const _kDiaryTable = 'diary_entries';
+const _kDiaryImagesBucket = 'diary-images';
 
 /// 日记仓库
 ///
@@ -172,6 +173,10 @@ class DiaryRepository {
         createdAt: syncedEntry.createdAt,
         updatedAt: syncedEntry.updatedAt,
         userId: syncedEntry.userId,
+        location: Value(syncedEntry.location),
+        locationName: Value(syncedEntry.locationName),
+        imageUrls: Value(syncedEntry.imageUrls),
+        notebookId: Value(syncedEntry.notebookId),
       );
       final localId = await _localDao.insertEntry(companion);
 
@@ -203,6 +208,7 @@ class DiaryRepository {
           entry.cloudId == null ? entry.copyWith(cloudId: _uuid.v4()) : entry;
 
       // 步骤 1：更新本地数据库
+      // 注意：允许更新 date，但保持 createdAt 原始创建时间不变。
       final companion = db.DiaryEntriesCompanion(
         id: Value(syncedEntry.id!),
         cloudId: Value(syncedEntry.cloudId),
@@ -211,6 +217,10 @@ class DiaryRepository {
         date: Value(syncedEntry.date),
         updatedAt: Value(syncedEntry.updatedAt),
         userId: Value(syncedEntry.userId),
+        location: Value(syncedEntry.location),
+        locationName: Value(syncedEntry.locationName),
+        imageUrls: Value(syncedEntry.imageUrls),
+        notebookId: Value(syncedEntry.notebookId),
       );
       await _localDao.updateEntry(companion);
 
@@ -235,17 +245,38 @@ class DiaryRepository {
       final existingRow = await _localDao.getEntryById(id);
       final existingEntry =
           existingRow != null ? _mapRowToDiaryEntry(existingRow) : null;
+      final imageUrls = _splitImageUrls(existingEntry?.imageUrls);
 
       // 步骤 1：从本地数据库删除
       await _localDao.deleteEntry(id);
 
-      // 步骤 2：异步从云端删除
+      // 步骤 2：删除关联图片对象
+      await deleteStorageImagesByUrls(imageUrls);
+
+      // 步骤 3：异步从云端删除
       final cloudId = existingEntry?.cloudId;
       if (cloudId != null) {
         _deleteFromCloud(cloudId, userId);
       }
     } catch (e) {
       debugPrint('[DiaryRepository] 删除日记失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 清空指定用户的全部日记（本地 + 云端）
+  Future<void> clearAllEntriesForUser(String userId) async {
+    try {
+      final existingEntries = await _localDao.getAllEntries(userId);
+      final imageUrls = existingEntries.expand(
+        (entry) => _splitImageUrls(entry.imageUrls),
+      );
+
+      await _localDao.deleteAllEntries(userId);
+      await deleteStorageImagesByUrls(imageUrls);
+      await _supabaseClient.from(_kDiaryTable).delete().eq('user_id', userId);
+    } catch (e) {
+      debugPrint('[DiaryRepository] 清空用户日记失败: $e');
       rethrow;
     }
   }
@@ -305,7 +336,7 @@ class DiaryRepository {
   /// 将 Drift 数据库行对象转换为领域模型 [DiaryEntry]
   ///
   /// Drift 生成的 DiaryEntry 类（数据库行）与我们的领域模型 DiaryEntry 同名，
-  /// 但属于不同的类型。此方法负责类型映射。
+  /// 但属于不同的类型。此方法负责类型映射，包含新增的 location/imageUrls 字段。
   diary_domain.DiaryEntry _mapRowToDiaryEntry(db.DiaryEntry row) {
     return diary_domain.DiaryEntry(
       id: row.id,
@@ -316,7 +347,31 @@ class DiaryRepository {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       userId: row.userId,
+      location: row.location,
+      locationName: row.locationName,
+      imageUrls: row.imageUrls,
+      notebookId: row.notebookId,
     );
+  }
+
+  Future<void> deleteStorageImagesByUrls(Iterable<String> imageUrls) async {
+    final storagePaths = imageUrls
+        .map(_storagePathFromPublicUrl)
+        .whereType<String>()
+        .toSet()
+        .toList(growable: false);
+    if (storagePaths.isEmpty) {
+      return;
+    }
+
+    try {
+      await _supabaseClient.storage
+          .from(_kDiaryImagesBucket)
+          .remove(storagePaths);
+      debugPrint('[DiaryRepository] 已删除 ${storagePaths.length} 个日记图片对象');
+    } catch (e) {
+      debugPrint('[DiaryRepository] 删除日记图片对象失败: $e');
+    }
   }
 
   /// 异步将单条日记推送到云端 Supabase
@@ -349,6 +404,37 @@ class DiaryRepository {
     } catch (e) {
       debugPrint('[DiaryRepository] 云端删除失败: $e');
     }
+  }
+
+  List<String> _splitImageUrls(String? imageUrls) {
+    if (imageUrls == null || imageUrls.trim().isEmpty) {
+      return const [];
+    }
+
+    return imageUrls
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String? _storagePathFromPublicUrl(String imageUrl) {
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null) {
+      return null;
+    }
+
+    const prefix = '/storage/v1/object/public/$_kDiaryImagesBucket/';
+    final path = uri.path;
+    if (!path.contains(prefix)) {
+      return null;
+    }
+
+    final encodedPath = path.substring(path.indexOf(prefix) + prefix.length);
+    if (encodedPath.isEmpty) {
+      return null;
+    }
+    return Uri.decodeComponent(encodedPath);
   }
 
   Future<diary_domain.DiaryEntry> _ensureLocalCloudId(
@@ -407,6 +493,10 @@ class DiaryRepository {
           createdAt: cloudEntry.createdAt,
           updatedAt: cloudEntry.updatedAt,
           userId: cloudEntry.userId,
+          location: Value(cloudEntry.location),
+          locationName: Value(cloudEntry.locationName),
+          imageUrls: Value(cloudEntry.imageUrls),
+          notebookId: Value(cloudEntry.notebookId),
         );
         await _localDao.insertEntry(companion);
       }
@@ -434,7 +524,7 @@ class DiaryRepository {
         // 本地较新 → 推送到云端
         await _syncToCloud(localEntry);
       } else if (cloudEntry.updatedAt.isAfter(localEntry.updatedAt)) {
-        // 云端较新 → 更新本地
+        // 云端较新 → 更新本地（保留本地主键，覆盖最新业务字段）
         final companion = db.DiaryEntriesCompanion(
           id: Value(localEntry.id!),
           cloudId: Value(cloudId),
@@ -443,6 +533,10 @@ class DiaryRepository {
           date: Value(cloudEntry.date),
           updatedAt: Value(cloudEntry.updatedAt),
           userId: Value(cloudEntry.userId),
+          location: Value(cloudEntry.location),
+          locationName: Value(cloudEntry.locationName),
+          imageUrls: Value(cloudEntry.imageUrls),
+          notebookId: Value(cloudEntry.notebookId),
         );
         await _localDao.updateEntry(companion);
       }

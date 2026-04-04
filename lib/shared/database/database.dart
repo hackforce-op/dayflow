@@ -97,6 +97,60 @@ class DiaryEntries extends Table {
   /// 关联 Supabase Auth 中的用户标识符。
   /// 用于数据隔离，确保每个用户只能访问自己的日记。
   TextColumn get userId => text()();
+
+  /// 地理位置字符串（可选），格式："纬度,经度"
+  ///
+  /// 记录写日记时的地理坐标，用于展示记录地点。
+  TextColumn get location => text().nullable()();
+
+  /// 位置地名（可选），存储经 geocoding 解析后的可读地址
+  ///
+  /// 例如："酸奶紫米露(西华记忆店)西华..."
+  TextColumn get locationName => text().nullable()();
+
+  /// 图片 URL 列表（可选），以英文逗号分隔
+  ///
+  /// 日记中插入的所有图片的 URL，逗号分隔。
+  /// 展示时取第一张作为封面缩略图。
+  TextColumn get imageUrls => text().nullable()();
+
+  /// 所属日记本 ID（可选）
+  ///
+  /// 关联 [Notebooks] 表的主键。为 null 时归属默认日记本。
+  IntColumn get notebookId => integer().nullable()();
+}
+
+/// ============================================================================
+/// 日记本表 (notebooks)
+/// ============================================================================
+///
+/// 存储用户自定义的日记本，用于对日记条目进行分组管理。
+///
+/// 每个日记本有独立的名称和封面图片，用户可自行创建、重命名、删除。
+class Notebooks extends Table {
+  /// 自增主键
+  IntColumn get id => integer().autoIncrement()();
+
+  /// 云端主键 ID（Supabase UUID）
+  TextColumn get cloudId => text().nullable()();
+
+  /// 日记本名称
+  TextColumn get name => text()();
+
+  /// 封面图片 URL（可选）
+  TextColumn get coverUrl => text().nullable()();
+
+  /// 排序序号（数值越小越靠前）
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// 记录创建时间
+  DateTimeColumn get createdAt => dateTime()();
+
+  /// 记录最后更新时间
+  DateTimeColumn get updatedAt => dateTime()();
+
+  /// 所属用户 ID
+  TextColumn get userId => text()();
 }
 
 /// ============================================================================
@@ -268,7 +322,7 @@ class NewsBookmarks extends Table {
 ///
 /// 数据库实例通过 Riverpod Provider ([appDatabaseProvider]) 管理，
 /// 确保整个应用生命周期中只有一个数据库连接。
-@DriftDatabase(tables: [DiaryEntries, Tasks, NewsSummaries, NewsBookmarks])
+@DriftDatabase(tables: [DiaryEntries, Tasks, NewsSummaries, NewsBookmarks, Notebooks])
 class AppDatabase extends _$AppDatabase {
   /// 构造函数
   ///
@@ -287,29 +341,15 @@ class AppDatabase extends _$AppDatabase {
   /// 当前版本为 2。
   ///
   /// v2 新增 `cloudId` 字段，用于将本地自增 ID 与 Supabase UUID 解耦。
-  /// 每次修改表结构时需要递增此版本号，并在 [migration] 中
-  /// 编写对应的数据迁移逻辑。
+  /// v3 新增 `location`、`locationName`、`imageUrls` 字段，支持地理位置与图片存储。
+  /// v4 新增 `Notebooks` 表和 `DiaryEntries.notebookId` 字段，支持日记本分组。
+  /// 每次修改表结构时需要递增此版本号，并在 [migration] 中编写对应的数据迁移逻辑。
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   /// 数据库迁移策略
   ///
   /// 定义从旧版本到新版本的数据迁移步骤。
-  /// 当前为初始版本，仅包含创建所有表的 onCreate 回调。
-  ///
-  /// 后续新增迁移示例：
-  /// ```dart
-  /// @override
-  /// MigrationStrategy get migration => MigrationStrategy(
-  ///   onCreate: (m) async => await m.createAll(),
-  ///   onUpgrade: (m, from, to) async {
-  ///     if (from < 2) {
-  ///       // 版本 2 的迁移逻辑
-  ///       await m.addColumn(tasks, tasks.newColumn);
-  ///     }
-  ///   },
-  /// );
-  /// ```
   @override
   MigrationStrategy get migration => MigrationStrategy(
         /// 首次创建数据库时，自动创建所有表
@@ -317,6 +357,7 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
         },
         onUpgrade: (Migrator m, int from, int to) async {
+          // v1→v2：新增 cloudId 字段
           if (from < 2) {
             await m.addColumn(
               diaryEntries,
@@ -325,6 +366,29 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(
               tasks,
               tasks.cloudId as GeneratedColumn<Object>,
+            );
+          }
+          // v2→v3：新增地理位置与图片字段（均为可选，无需迁移数据）
+          if (from < 3) {
+            await m.addColumn(
+              diaryEntries,
+              diaryEntries.location as GeneratedColumn<Object>,
+            );
+            await m.addColumn(
+              diaryEntries,
+              diaryEntries.locationName as GeneratedColumn<Object>,
+            );
+            await m.addColumn(
+              diaryEntries,
+              diaryEntries.imageUrls as GeneratedColumn<Object>,
+            );
+          }
+          // v3→v4：新增日记本表和 notebookId 字段
+          if (from < 4) {
+            await m.createTable(notebooks);
+            await m.addColumn(
+              diaryEntries,
+              diaryEntries.notebookId as GeneratedColumn<Object>,
             );
           }
         },

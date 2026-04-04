@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dayflow/features/diary/domain/diary_entry.dart';
+import 'package:dayflow/features/diary/presentation/widgets/diary_image_embed.dart';
 import 'package:dayflow/features/planner/domain/task_item.dart';
 
 void main() {
@@ -17,6 +18,91 @@ void main() {
 
     test('returns null for unknown values', () {
       expect(Mood.fromValue('missing'), isNull);
+    });
+
+    test('diary copyWith can clear nullable fields explicitly', () {
+      final entry = DiaryEntry(
+        id: 1,
+        cloudId: 'cloud-1',
+        content: 'with image',
+        mood: Mood.happy,
+        date: DateTime(2026, 3, 31),
+        createdAt: DateTime(2026, 3, 31, 8),
+        updatedAt: DateTime(2026, 3, 31, 9),
+        userId: 'user-1',
+        location: '30.1,104.1',
+        locationName: '成都',
+        imageUrls: 'https://example.com/a.png',
+      );
+
+      final cleared = entry.copyWith(
+        mood: null,
+        location: null,
+        locationName: null,
+        imageUrls: null,
+      );
+
+      expect(cleared.mood, isNull);
+      expect(cleared.location, isNull);
+      expect(cleared.locationName, isNull);
+      expect(cleared.imageUrls, isNull);
+    });
+
+    test('resolves diary image source from legacy embed payloads', () {
+      expect(
+        resolveDiaryImageSource('https://example.com/a.png'),
+        'https://example.com/a.png',
+      );
+      expect(
+        resolveDiaryImageSource({'image': 'https://example.com/b.png'}),
+        'https://example.com/b.png',
+      );
+      expect(
+        resolveDiaryImageSource('{"image":"https://example.com/c.png"}'),
+        'https://example.com/c.png',
+      );
+      expect(
+        resolveDiaryImageSource({
+          'image': {'source': 'https://example.com/d.png'},
+        }),
+        'https://example.com/d.png',
+      );
+    });
+
+    test('normalizes legacy diary delta image inserts', () {
+      final normalized = normalizeDiaryDeltaImageInserts([
+        {
+          'insert': {
+            'image': '{"source":"https://example.com/a.png"}',
+          },
+        },
+        {
+          'insert': '\n',
+        },
+      ]);
+
+      expect(
+        normalized.first,
+        {
+          'insert': {'image': 'https://example.com/a.png'},
+        },
+      );
+    });
+
+    test('extracts diary image sources from saved delta content', () {
+      const content =
+          '[{"insert":{"image":"https://example.com/a.png"}},'
+          '{"insert":"\\n正文"},'
+          '{"insert":{"image":"data:image/png;base64,AAAA"}},'
+          '{"insert":"\\n"}]';
+
+      expect(
+        extractDiaryImageSourcesFromContent(content),
+        [
+          'https://example.com/a.png',
+          'data:image/png;base64,AAAA',
+        ],
+      );
     });
   });
 

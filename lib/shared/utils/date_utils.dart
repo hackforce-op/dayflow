@@ -39,6 +39,9 @@ abstract class AppDateUtils {
   /// 完整日期时间格式：2024-01-15 14:30
   static final DateFormat _dateTimeFormat = DateFormat('yyyy-MM-dd HH:mm');
 
+  /// 精确到秒的时间格式：14:30:22
+  static final DateFormat _timeWithSecondsFormat = DateFormat('HH:mm:ss');
+
   /// 中文星期名称映射
   static const List<String> _weekdayNames = [
     '星期一',
@@ -84,6 +87,25 @@ abstract class AppDateUtils {
   /// [date] 要格式化的日期时间
   static String formatTime(DateTime date) {
     return _timeFormat.format(date);
+  }
+
+  /// 格式化为精确到秒的时间字符串
+  ///
+  /// 输出格式：14:30:22
+  /// [date] 要格式化的日期时间
+  static String formatTimeWithSeconds(DateTime date) {
+    return _timeWithSecondsFormat.format(date);
+  }
+
+  /// 格式化为带中文星期前缀的简短字符串
+  ///
+  /// 输出格式：周一
+  /// [date] 要格式化的日期
+  static String formatWeekday(DateTime date) {
+    const shortWeekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    final index = date.weekday - 1;
+    if (index < 0 || index >= shortWeekdays.length) return '周?';
+    return shortWeekdays[index];
   }
 
   /// 格式化为完整日期时间字符串

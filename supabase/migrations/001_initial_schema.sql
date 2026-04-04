@@ -19,11 +19,11 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- 用户只能访问自己的 profile
 CREATE POLICY "Users can view own profile"
-  ON profiles FOR SELECT USING (auth.uid() = id);
+  ON profiles FOR SELECT USING ((select auth.uid()) = id);
 CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE USING (auth.uid() = id);
+  ON profiles FOR UPDATE USING ((select auth.uid()) = id);
 CREATE POLICY "Users can insert own profile"
-  ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+  ON profiles FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 -- ============================================================
 -- 日记表
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS diary_entries (
 ALTER TABLE diary_entries ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can CRUD own diary entries"
-  ON diary_entries FOR ALL USING (auth.uid() = user_id);
+  ON diary_entries FOR ALL USING ((select auth.uid()) = user_id);
 
 -- ============================================================
 -- 任务表
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can CRUD own tasks"
-  ON tasks FOR ALL USING (auth.uid() = user_id);
+  ON tasks FOR ALL USING ((select auth.uid()) = user_id);
 
 -- ============================================================
 -- 新闻摘要表（全局共享）
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS news_bookmarks (
 ALTER TABLE news_bookmarks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can CRUD own bookmarks"
-  ON news_bookmarks FOR ALL USING (auth.uid() = user_id);
+  ON news_bookmarks FOR ALL USING ((select auth.uid()) = user_id);
 
 -- ============================================================
 -- 索引优化

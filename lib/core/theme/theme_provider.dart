@@ -56,12 +56,12 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   /// 更新内存中的状态，并异步保存到 SharedPreferences。
   /// [mode] 要设置的新主题模式
   Future<void> setThemeMode(ThemeMode mode) async {
+    if (state == mode) return;
     state = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      AppConstants.themePrefsKey,
-      _themeModeToString(mode),
-    );
+    // 异步保存，不阻塞 UI
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(AppConstants.themePrefsKey, _themeModeToString(mode));
+    });
   }
 
   /// 在系统/浅色/深色三种模式之间循环切换

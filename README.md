@@ -75,6 +75,8 @@ flutter run -d linux --dart-define-from-file=env.json
 
 当前仓库已经内置中文字体资源。修改后第一次重新运行时，Flutter 会把字体打进 Linux/Web 构建产物里。
 
+每次启动应用后，都会先进入“账号选择页”，可快速选择历史登录账号或切换到新账号登录。
+
 ## 常用验证命令
 
 静态检查：
@@ -99,6 +101,12 @@ flutter test test/diary_and_planner_pages_test.dart
 
 ```bash
 flutter test --plain-name "DiaryListPage"
+```
+
+清理单个用户全部记录（Supabase SQL，一条命令）：
+
+```bash
+psql "$SUPABASE_DB_URL" -v user_id="<USER_UUID>" -f scripts/clear_user_records.sql
 ```
 
 ## 现在的启动顺序

@@ -106,4 +106,30 @@ abstract class AppConstants {
 
   /// 主题模式存储键，用于持久化用户的主题偏好设置
   static const String themePrefsKey = 'theme_mode';
+
+  /// 主题风格预设存储键
+  static const String themePresetPrefsKey = 'theme_preset';
+
+  /// 已登录账号列表存储键
+  static const String rememberedAccountsPrefsKey = 'remembered_accounts';
+
+  /// 侧边栏宽度存储键
+  static const String sidebarWidthPrefsKey = 'sidebar_width';
+
+  /// 侧边栏收起状态存储键
+  static const String sidebarCollapsedPrefsKey = 'sidebar_collapsed';
+
+  /// 农历显示开关存储键
+  static const String lunarCalendarPrefsKey = 'lunar_calendar_enabled';
+
+  /// 日记位置记录偏好存储键
+  ///
+  /// 值为 'true' 表示用户同意自动记录位置，'false' 表示拒绝，
+  /// 不存在时表示尚未询问。
+  static const String locationPermPrefsKey = 'diary_location_enabled';
+
+  /// 「点击即可编辑」开关存储键
+  ///
+  /// 开启后，在日记详情页点击内容区域即直接跳转编辑页面。
+  static const String tapToEditPrefsKey = 'tap_to_edit_enabled';
 }

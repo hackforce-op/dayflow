@@ -15,13 +15,32 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:dayflow/core/constants/app_constants.dart';
 import 'package:dayflow/core/supabase/supabase_client.dart';
 import 'package:dayflow/core/theme/app_theme.dart';
 import 'package:dayflow/core/theme/theme_provider.dart';
+import 'package:dayflow/core/theme/theme_style_provider.dart';
 import 'package:dayflow/core/router/app_router.dart';
+
+// ============================================================
+// 主题缓存 Provider（避免每次 build 都重新计算 ThemeData）
+// ============================================================
+
+/// 缓存浅色主题数据，以 ThemePreset 为 key，相同 key 只计算一次
+final _cachedLightThemeProvider =
+    Provider.family<ThemeData, ThemePreset>((ref, preset) {
+  return AppTheme.lightTheme(preset: preset);
+});
+
+/// 缓存深色主题数据，以 ThemePreset 为 key，相同 key 只计算一次
+final _cachedDarkThemeProvider =
+    Provider.family<ThemeData, ThemePreset>((ref, preset) {
+  return AppTheme.darkTheme(preset: preset);
+});
 
 // ============================================================
 // 应用启动入口
@@ -88,8 +107,8 @@ class StartupErrorApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme(),
+      darkTheme: AppTheme.darkTheme(),
       home: Scaffold(
         body: SafeArea(
           child: Center(
@@ -148,6 +167,10 @@ class DayFlowApp extends ConsumerWidget {
 
     // 监听当前主题模式（system / light / dark）
     final themeMode = ref.watch(themeModeProvider);
+    final themePreset = ref.watch(themePresetProvider);
+    // 使用缓存的 ThemeData，避免每次 build 时重新计算（性能优化）
+    final lightTheme = ref.watch(_cachedLightThemeProvider(themePreset));
+    final darkTheme = ref.watch(_cachedDarkThemeProvider(themePreset));
 
     return MaterialApp.router(
       // 应用标题（显示在任务管理器等系统界面中）
@@ -161,16 +184,28 @@ class DayFlowApp extends ConsumerWidget {
       // ----------------------------------------------------------
 
       /// 浅色主题（Material 3 设计）
-      theme: AppTheme.lightTheme,
+      theme: lightTheme,
 
       /// 深色主题（Material 3 设计）
-      darkTheme: AppTheme.darkTheme,
+      darkTheme: darkTheme,
 
       /// 当前主题模式：根据用户偏好切换
-      /// - ThemeMode.system：跟随系统设置
-      /// - ThemeMode.light：强制浅色
-      /// - ThemeMode.dark：强制深色
       themeMode: themeMode,
+
+      /// 禁用主题切换动画，消除切换时的卡顿感
+      themeAnimationDuration: Duration.zero,
+
+      localizationsDelegates: const [
+        // flutter_quill 需要此 delegate，否则打开编辑页时会抛出 UnimplementedError
+        FlutterQuillLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('zh', 'CN'),
+        Locale('en', 'US'),
+      ],
 
       // ----------------------------------------------------------
       // 路由配置（go_router）

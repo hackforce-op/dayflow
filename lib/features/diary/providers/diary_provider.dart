@@ -16,6 +16,8 @@
 ///
 /// UI (ConsumerWidget) → Provider (StateNotifier) → Repository → DAO / Supabase
 /// ============================================================================
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -349,13 +351,21 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
   })  : _repository = repository,
         super(const DiaryEditorInitial());
 
+  /// 重置编辑器状态
+  ///
+  /// 用于进入新页面时清空上一次编辑状态，避免出现内容串页。
+  void reset() {
+    state = const DiaryEditorInitial();
+  }
+
   /// 初始化新建日记
   ///
   /// 创建一个空白的日记模板，日期默认为今天。
   ///
   /// [userId] 当前登录用户 ID
   /// [date] 日记日期，默认为当天
-  void initNew(String userId, {DateTime? date}) {
+  /// [notebookId] 所属日记本 ID（可选）
+  void initNew(String userId, {DateTime? date, int? notebookId}) {
     final now = DateTime.now();
     final entry = DiaryEntry(
       content: '',
@@ -364,6 +374,7 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
       createdAt: now,
       updatedAt: now,
       userId: userId,
+      notebookId: notebookId,
     );
     state = DiaryEditorLoaded(entry: entry, isDirty: false);
   }
@@ -408,16 +419,41 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
     }
   }
 
+  /// 更新日记日期
+  ///
+  /// 用户在日期选择器中选择新日期后调用。
+  void updateDate(DateTime newDate) {
+    final currentState = state;
+    if (currentState is DiaryEditorLoaded) {
+      state = DiaryEditorLoaded(
+        entry: currentState.entry.copyWith(date: newDate),
+        isDirty: true,
+      );
+    }
+  }
+
   /// 保存日记（新建或更新）
   ///
   /// 根据日记是否有 ID 来判断是新建还是更新操作。
   /// 保存成功后切换到 [DiaryEditorSaved] 状态。
   ///
-  /// [content] 日记正文内容
+  /// [content] 日记正文内容（Quill Delta JSON 格式）
   /// [mood] 心情选择（可选）
-  Future<void> save(String content, Mood? mood) async {
+  /// [location] 地理位置坐标字符串（可选）
+  /// [locationName] 位置地名（可选）
+  /// [imageUrls] 图片 URL 字符串，逗号分隔（可选）
+  Future<DiaryEntry?> save(
+    String content,
+    Mood? mood, {
+    String? location,
+    String? locationName,
+    String? imageUrls,
+    List<String> removedImageUrls = const [],
+  }) async {
     final currentState = state;
-    if (currentState is! DiaryEditorLoaded) return;
+    if (currentState is! DiaryEditorLoaded) {
+      return null;
+    }
 
     state = const DiaryEditorSaving();
 
@@ -426,6 +462,9 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
         content: content,
         mood: mood,
         updatedAt: DateTime.now(),
+        location: location,
+        locationName: locationName,
+        imageUrls: imageUrls,
       );
 
       DiaryEntry savedEntry;
@@ -437,15 +476,30 @@ class DiaryEditorNotifier extends StateNotifier<DiaryEditorState> {
         savedEntry = await _repository.updateEntry(entryToSave);
       }
 
+      // 本地保存成功后立即通知 UI，不等待云端图片清理
       state = DiaryEditorSaved(savedEntry);
+
+      // 异步清理被删除的图片（不阻塞保存流程）
+      if (removedImageUrls.isNotEmpty) {
+        unawaited(
+          _repository.deleteStorageImagesByUrls(removedImageUrls),
+        );
+      }
+      return savedEntry;
     } catch (e) {
       debugPrint('[DiaryEditorNotifier] 保存日记失败: $e');
+      // 恢复到编辑状态，保留用户输入，同时附带错误消息
       state = const DiaryEditorError('保存失败，请稍后重试');
-      // 恢复到编辑状态，保留用户输入
-      state = DiaryEditorLoaded(
-        entry: currentState.entry.copyWith(content: content, mood: mood),
-        isDirty: true,
-      );
+      // 立即恢复到可编辑状态（保留用户当前编辑内容）
+      Future.microtask(() {
+        if (mounted) {
+          state = DiaryEditorLoaded(
+            entry: currentState.entry.copyWith(content: content, mood: mood),
+            isDirty: true,
+          );
+        }
+      });
+      return null;
     }
   }
 
@@ -529,9 +583,20 @@ final diaryListProvider =
       repository: repository,
       userId: userId,
     );
-    // 创建后自动加载数据
+    // 创建后先只加载本地数据。
+    // 云端同步改为由用户显式触发（如下拉刷新），避免列表初始化阶段
+    // 的异步合并覆盖刚保存的本地内容，导致“条目消失”之类的竞态问题。
     notifier.loadEntries();
     return notifier;
+  },
+);
+
+/// 单条日记详情 Provider
+///
+/// 用于日记详情页按 ID 读取最新数据。
+final diaryEntryProvider = FutureProvider.autoDispose.family<DiaryEntry?, int>(
+  (ref, entryId) {
+    return ref.watch(diaryRepositoryProvider).getEntryById(entryId);
   },
 );
 
@@ -552,7 +617,7 @@ final diaryListProvider =
 /// ref.read(diaryEditorProvider.notifier).save(content, mood);
 /// ```
 final diaryEditorProvider =
-    StateNotifierProvider<DiaryEditorNotifier, DiaryEditorState>(
+    StateNotifierProvider.autoDispose<DiaryEditorNotifier, DiaryEditorState>(
   (ref) {
     final repository = ref.watch(diaryRepositoryProvider);
     return DiaryEditorNotifier(repository: repository);

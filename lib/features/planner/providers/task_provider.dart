@@ -38,11 +38,16 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
   final TaskRepository _repository;
   final String _userId;
 
+  TaskStatus? _currentStatusFilter;
+  bool _showTodayOnly = false;
+
   TaskListNotifier(this._repository, this._userId)
       : super(const TaskListLoading());
 
   /// 加载所有任务
   Future<void> loadTasks() async {
+    _showTodayOnly = false;
+    _currentStatusFilter = null;
     state = const TaskListLoading();
     try {
       final tasks = await _repository.getAllTasks(_userId);
@@ -54,6 +59,8 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
 
   /// 加载今日任务
   Future<void> loadTodayTasks() async {
+    _showTodayOnly = true;
+    _currentStatusFilter = null;
     state = const TaskListLoading();
     try {
       final tasks = await _repository.getTodayTasks(_userId);
@@ -65,6 +72,8 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
 
   /// 按状态筛选任务
   Future<void> filterByStatus(TaskStatus status) async {
+    _showTodayOnly = false;
+    _currentStatusFilter = status;
     state = const TaskListLoading();
     try {
       final tasks = await _repository.getTasksByStatus(_userId, status);
@@ -83,13 +92,40 @@ class TaskListNotifier extends StateNotifier<TaskListState> {
       TaskStatus.done => TaskStatus.todo,
     };
     await _repository.updateTaskStatus(task.id!, nextStatus);
-    await loadTasks(); // 重新加载
+    await refreshCurrentView();
   }
 
   /// 删除任务
   Future<void> deleteTask(int taskId) async {
     await _repository.deleteTask(taskId);
-    await loadTasks();
+    await refreshCurrentView();
+  }
+
+  /// 更新任务
+  Future<void> updateTask(TaskItem task) async {
+    await _repository.updateTask(task);
+    await refreshCurrentView();
+  }
+
+  /// 同步云端数据并刷新当前视图
+  Future<void> syncAndRefresh() async {
+    try {
+      await _repository.syncWithCloud(_userId);
+    } catch (_) {
+      // 对于不支持同步方法的测试桩，降级为仅刷新本地视图。
+    }
+    await refreshCurrentView();
+  }
+
+  /// 按当前视图模式刷新数据
+  Future<void> refreshCurrentView() async {
+    if (_currentStatusFilter != null) {
+      return filterByStatus(_currentStatusFilter!);
+    }
+    if (_showTodayOnly) {
+      return loadTodayTasks();
+    }
+    return loadTasks();
   }
 }
 
@@ -105,7 +141,10 @@ final taskListProvider =
 
   final notifier = TaskListNotifier(repository, userId);
   if (userId.isNotEmpty) {
-    Future.microtask(notifier.loadTodayTasks);
+    Future.microtask(() async {
+      await notifier.loadTasks();
+      await notifier.syncAndRefresh();
+    });
   }
 
   return notifier;

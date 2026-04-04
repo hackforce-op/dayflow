@@ -14,19 +14,26 @@
 /// 使用手动 Riverpod Provider（非代码生成）。
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:dayflow/features/auth/presentation/pages/account_select_page.dart';
+import 'package:dayflow/features/diary/presentation/pages/diary_detail_page.dart';
 import 'package:dayflow/features/diary/presentation/pages/diary_edit_page.dart';
 import 'package:dayflow/features/diary/presentation/pages/diary_list_page.dart';
-import 'package:dayflow/shared/widgets/app_bottom_nav.dart';
+import 'package:dayflow/features/diary/presentation/pages/notebook_list_page.dart';
 import 'package:dayflow/features/auth/presentation/pages/login_page.dart';
 import 'package:dayflow/features/auth/presentation/pages/register_page.dart';
 import 'package:dayflow/features/auth/presentation/pages/splash_page.dart';
 import 'package:dayflow/features/news/presentation/pages/news_page.dart';
 import 'package:dayflow/features/planner/presentation/pages/planner_page.dart';
+import 'package:dayflow/features/profile/presentation/pages/profile_page.dart';
+import 'package:dayflow/features/settings/presentation/pages/settings_page.dart';
+import 'package:dayflow/shared/widgets/app_bottom_nav.dart';
+import 'package:dayflow/shared/widgets/app_shell_scaffold.dart';
 
 // ============================================================
 // 路由路径常量
@@ -45,6 +52,9 @@ abstract class RoutePaths {
   /// 注册页
   static const String register = '/register';
 
+  /// 启动账号选择页
+  static const String accountSelect = '/account-select';
+
   /// 日记列表页（主页默认标签）
   static const String diary = '/diary';
 
@@ -53,11 +63,20 @@ abstract class RoutePaths {
   /// - 传入 id：编辑已有日记
   static const String diaryEdit = '/diary/edit';
 
+  /// 日记详情页
+  static const String diaryView = '/diary/view';
+
   /// 规划页
   static const String planner = '/planner';
 
   /// 新闻页
   static const String news = '/news';
+
+  /// 个人资料页
+  static const String profile = '/profile';
+
+  /// 设置页
+  static const String settings = '/settings';
 }
 
 // ============================================================
@@ -75,6 +94,7 @@ abstract class RoutePaths {
 /// /login           → 登录页（占位）
 /// /register        → 注册页（占位）
 /// /diary           → 日记列表（ShellRoute 内，带底部导航）
+/// /diary/view/:id  → 日记详情页
 /// /diary/edit      → 日记编辑页
 /// /diary/edit/:id  → 编辑已有日记
 /// /planner         → 规划页（ShellRoute 内，带底部导航）
@@ -83,10 +103,10 @@ abstract class RoutePaths {
 GoRouter createRouter(Ref ref) {
   return GoRouter(
     // 应用启动时的初始路由
-    initialLocation: RoutePaths.diary,
+    initialLocation: RoutePaths.accountSelect,
 
     // 路由调试日志（仅在 debug 模式下输出路由变化）
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
 
     // ----------------------------------------------------------
     // 全局路由守卫（重定向逻辑）
@@ -103,16 +123,21 @@ GoRouter createRouter(Ref ref) {
       final isAuthRoute =
           currentPath == RoutePaths.login || currentPath == RoutePaths.register;
 
+      final isAccountSelectRoute = currentPath == RoutePaths.accountSelect;
+
       // 是否在闪屏页
       final isSplashRoute = currentPath == RoutePaths.splash;
 
+      final isPublicRoute =
+          isAuthRoute || isSplashRoute || isAccountSelectRoute;
+
       // 规则 1：闪屏页 → 根据登录状态跳转
       if (isSplashRoute) {
-        return isLoggedIn ? RoutePaths.diary : RoutePaths.login;
+        return RoutePaths.accountSelect;
       }
 
       // 规则 2：未登录 + 非认证页面 → 跳转到登录页
-      if (!isLoggedIn && !isAuthRoute) {
+      if (!isLoggedIn && !isPublicRoute) {
         return RoutePaths.login;
       }
 
@@ -140,7 +165,16 @@ GoRouter createRouter(Ref ref) {
       GoRoute(
         path: RoutePaths.login,
         name: 'login',
-        builder: (context, state) => const LoginPage(),
+        builder: (context, state) {
+          final prefilledEmail = state.uri.queryParameters['email'];
+          return LoginPage(prefilledEmail: prefilledEmail);
+        },
+      ),
+
+      GoRoute(
+        path: RoutePaths.accountSelect,
+        name: 'account-select',
+        builder: (context, state) => const AccountSelectPage(),
       ),
 
       // 注册页路由 - 新用户注册（含密码强度提示）
@@ -160,27 +194,46 @@ GoRouter createRouter(Ref ref) {
           // 根据当前路径计算选中的标签索引
           final currentIndex = calculateSelectedIndex(state.matchedLocation);
 
-          return Scaffold(
-            // 子路由的页面内容
-            body: child,
-            // 底部导航栏
-            bottomNavigationBar: AppBottomNav(
-              currentIndex: currentIndex,
-            ),
+          return AppShellScaffold(
+            child: child,
+            currentIndex: currentIndex,
           );
         },
         routes: [
-          // 日记列表页
+          // 日记本列表页（首页默认入口）
           GoRoute(
             path: RoutePaths.diary,
             name: 'diary',
-            builder: (context, state) => const DiaryListPage(),
+            builder: (context, state) => const NotebookListPage(),
             routes: [
+              // 日记本内的日记列表
+              GoRoute(
+                path: 'notebook/:notebookId',
+                name: 'diary-notebook',
+                builder: (context, state) {
+                  final notebookId =
+                      int.tryParse(state.pathParameters['notebookId'] ?? '');
+                  return DiaryListPage(notebookId: notebookId);
+                },
+              ),
+              // 日记详情
+              GoRoute(
+                path: 'view/:id',
+                name: 'diary-view',
+                builder: (context, state) {
+                  final id = int.tryParse(state.pathParameters['id'] ?? '');
+                  return DiaryDetailPage(diaryId: id ?? -1);
+                },
+              ),
               // 新建日记
               GoRoute(
                 path: 'edit',
                 name: 'diary-new',
-                builder: (context, state) => const DiaryEditPage(),
+                builder: (context, state) {
+                  final notebookId = int.tryParse(
+                      state.uri.queryParameters['notebookId'] ?? '');
+                  return DiaryEditPage(notebookId: notebookId);
+                },
               ),
               // 编辑已有日记（通过路径参数传递日记 ID）
               GoRoute(
@@ -208,6 +261,18 @@ GoRouter createRouter(Ref ref) {
             builder: (context, state) => const NewsPage(),
           ),
         ],
+      ),
+
+      GoRoute(
+        path: RoutePaths.profile,
+        name: 'profile',
+        builder: (context, state) => const ProfilePage(),
+      ),
+
+      GoRoute(
+        path: RoutePaths.settings,
+        name: 'settings',
+        builder: (context, state) => const SettingsPage(),
       ),
     ],
   );

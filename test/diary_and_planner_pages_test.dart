@@ -12,9 +12,12 @@ import 'package:dayflow/features/auth/providers/auth_provider.dart';
 import 'package:dayflow/features/diary/data/diary_repository.dart';
 import 'package:dayflow/features/diary/domain/diary_entry.dart';
 import 'package:dayflow/features/diary/presentation/pages/diary_list_page.dart';
+import 'package:dayflow/features/diary/presentation/widgets/diary_card.dart';
 import 'package:dayflow/features/planner/data/task_repository.dart';
 import 'package:dayflow/features/planner/domain/task_item.dart';
 import 'package:dayflow/features/planner/presentation/pages/planner_page.dart';
+import 'package:dayflow/features/profile/data/profile_repository.dart';
+import 'package:dayflow/features/profile/presentation/widgets/profile_edit_dialog.dart';
 
 void main() {
   final testUser = UserProfile(
@@ -109,6 +112,118 @@ void main() {
       expect(find.text('需要被删除的日记'), findsNothing);
       expect(find.text('还没有日记，点击 + 开始写第一篇吧！'), findsOneWidget);
     });
+
+    testWidgets('renders diary card without bottom overflow', (tester) async {
+      final entry = DiaryEntry(
+        id: 99,
+        content: 'asdasdasd\nasd\nasd',
+        mood: Mood.sad,
+        date: DateTime(2026, 3, 31, 20, 30, 15),
+        createdAt: DateTime(2026, 3, 31, 20, 30, 15),
+        updatedAt: DateTime(2026, 3, 31, 20, 30, 15),
+        userId: testUser.id,
+        locationName: '成都市 武侯区 人民南路',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                DiaryCard(
+                  entry: entry,
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('成都市 武侯区 人民南路'), findsOneWidget);
+    });
+
+    testWidgets('filters entries by notebookId on notebook diary page', (
+      tester,
+    ) async {
+      final repository = _FakeDiaryRepository([
+        DiaryEntry(
+          id: 31,
+          content: '笔记本内的日记',
+          mood: Mood.happy,
+          date: DateTime(2026, 4, 1),
+          createdAt: DateTime(2026, 4, 1, 8),
+          updatedAt: DateTime(2026, 4, 1, 9),
+          userId: testUser.id,
+          notebookId: 7,
+        ),
+        DiaryEntry(
+          id: 32,
+          content: '不属于当前笔记本的日记',
+          mood: Mood.calm,
+          date: DateTime(2026, 4, 2),
+          createdAt: DateTime(2026, 4, 2, 8),
+          updatedAt: DateTime(2026, 4, 2, 9),
+          userId: testUser.id,
+          notebookId: 9,
+        ),
+      ]);
+
+      await _pumpTestApp(
+        tester,
+        child: const DiaryListPage(notebookId: 7),
+        overrides: [
+          authProvider.overrideWith(
+            (ref) => _TestAuthNotifier(AuthStateAuthenticated(testUser)),
+          ),
+          diaryRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      expect(find.textContaining('笔记本内的日记'), findsOneWidget);
+      expect(find.textContaining('不属于当前笔记本的日记'), findsNothing);
+    });
+
+    testWidgets('renders thumbnail from content when imageUrls is missing', (
+      tester,
+    ) async {
+      const dataUri = 'data:image/png;base64,'
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z2ioAAAAASUVORK5CYII=';
+      final entry = DiaryEntry(
+        id: 100,
+        content:
+            '[{"insert":{"image":"$dataUri"}},{"insert":"\\n带图日记"}]',
+        mood: Mood.happy,
+        date: DateTime(2026, 4, 3, 10, 30),
+        createdAt: DateTime(2026, 4, 3, 10, 30),
+        updatedAt: DateTime(2026, 4, 3, 10, 30),
+        userId: testUser.id,
+        imageUrls: null,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                DiaryCard(
+                  entry: entry,
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Image), findsOneWidget);
+    });
   });
 
   group('PlannerPage', () {
@@ -195,6 +310,36 @@ void main() {
 
       expect(find.text('补全 widget test'), findsNothing);
       expect(find.text('今天还没有任务，点击 + 创建一个吧！'), findsOneWidget);
+    });
+  });
+
+  group('ProfileEditDialog', () {
+    testWidgets('renders crop hint without overflow', (tester) async {
+      const profile = ProfileData(
+        userId: 'user-1',
+        email: 'tester@example.com',
+        displayName: '测试用户',
+        avatarUrl: null,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ProfileEditDialog(
+                profile: profile,
+                onUploadAvatar: (_) async => 'https://example.com/avatar.png',
+                onSave: (_, __) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('先裁剪再上传头像'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

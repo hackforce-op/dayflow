@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dayflow/core/constants/app_constants.dart';
 import 'package:dayflow/core/router/app_router.dart';
 import 'package:dayflow/features/auth/providers/auth_provider.dart';
+import 'package:dayflow/features/auth/providers/remembered_accounts_provider.dart';
 import 'package:dayflow/features/auth/presentation/widgets/auth_text_field.dart';
 import 'package:dayflow/features/auth/presentation/widgets/social_login_button.dart';
 
@@ -31,7 +32,12 @@ import 'package:dayflow/features/auth/presentation/widgets/social_login_button.d
 /// 2. 访问 Riverpod Provider（ConsumerWidget）
 class LoginPage extends ConsumerStatefulWidget {
   /// 创建登录页面
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.prefilledEmail,
+  });
+
+  final String? prefilledEmail;
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
@@ -50,6 +56,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   /// 密码输入框控制器
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefilledEmail != null && widget.prefilledEmail!.isNotEmpty) {
+      _emailController.text = widget.prefilledEmail!;
+    }
+  }
 
   @override
   void dispose() {
@@ -97,6 +111,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final rememberedAccounts = ref.watch(rememberedAccountsProvider);
 
     // 监听认证状态，处理错误提示和导航
     ref.listen<AuthState>(authProvider, (previous, next) {
@@ -110,6 +125,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         );
       } else if (next is AuthStateAuthenticated) {
+        ref
+            .read(rememberedAccountsProvider.notifier)
+            .remember(next.userProfile);
         context.go(RoutePaths.diary);
       }
     });
@@ -152,6 +170,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
+
+                  if (rememberedAccounts.isNotEmpty) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '已记住账号',
+                        style: theme.textTheme.labelLarge,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: rememberedAccounts
+                          .map(
+                            (account) => ActionChip(
+                              label: Text(account.displayName ?? account.email),
+                              avatar:
+                                  const Icon(Icons.person_outline, size: 18),
+                              onPressed: () {
+                                _emailController.text = account.email;
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // ------------------------------------------------
                   // 邮箱输入框

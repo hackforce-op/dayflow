@@ -86,7 +86,13 @@ class AuthRepository {
 
   String _buildRedirectUrl() {
     if (kIsWeb) {
-      return Uri.base.removeFragment().replace(queryParameters: {}).toString();
+      final base = Uri.base;
+      return Uri(
+        scheme: base.scheme,
+        host: base.host,
+        port: base.hasPort ? base.port : null,
+        path: '/',
+      ).toString();
     }
 
     return 'io.supabase.dayflow://login-callback/';
@@ -140,8 +146,7 @@ class AuthRepository {
         code: e.code,
       );
     } catch (e) {
-      // 其他异常（如网络错误）
-      throw AuthException('登录失败，请检查网络连接后重试');
+      throw AuthException(_mapUnknownError(e));
     }
   }
 
@@ -173,7 +178,7 @@ class AuthRepository {
         code: e.code,
       );
     } catch (e) {
-      throw AuthException('Google 登录失败，请稍后重试');
+      throw AuthException(_mapUnknownError(e));
     }
   }
 
@@ -226,7 +231,7 @@ class AuthRepository {
         code: e.code,
       );
     } catch (e) {
-      throw AuthException('注册失败，请检查网络连接后重试');
+      throw AuthException(_mapUnknownError(e));
     }
   }
 
@@ -329,6 +334,13 @@ class AuthRepository {
         lowerMessage.contains('already been registered')) {
       return '该邮箱已被注册，请直接登录或使用其他邮箱';
     }
+    if (lowerMessage.contains('redirect') &&
+        (lowerMessage.contains('allow') || lowerMessage.contains('invalid'))) {
+      return '当前项目的认证回调地址未允许，请检查 Supabase 的 Redirect URLs 配置';
+    }
+    if (lowerMessage.contains('email rate limit exceeded')) {
+      return '验证邮件发送过于频繁，请稍后再试';
+    }
     if (lowerMessage.contains('password')) {
       return '密码不符合要求，请使用至少 6 位字符';
     }
@@ -343,6 +355,26 @@ class AuthRepository {
 
     // 没有匹配的翻译，返回通用错误信息
     return '操作失败：$message';
+  }
+
+  String _mapUnknownError(Object error) {
+    final raw = error.toString();
+    final lower = raw.toLowerCase();
+
+    if (lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('connection refused') ||
+        lower.contains('connection closed') ||
+        lower.contains('network')) {
+      return '网络连接失败，请检查网络后重试';
+    }
+
+    if (lower.contains('redirect') &&
+        (lower.contains('allow') || lower.contains('invalid'))) {
+      return '认证回调地址配置异常，请在 Supabase 控制台补充 Redirect URL';
+    }
+
+    return '操作失败：$raw';
   }
 }
 

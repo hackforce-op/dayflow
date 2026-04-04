@@ -57,9 +57,45 @@ class $DiaryEntriesTable extends DiaryEntries
   late final GeneratedColumn<String> userId = GeneratedColumn<String>(
       'user_id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _locationMeta =
+      const VerificationMeta('location');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, cloudId, content, mood, date, createdAt, updatedAt, userId];
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+      'location', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _locationNameMeta =
+      const VerificationMeta('locationName');
+  @override
+  late final GeneratedColumn<String> locationName = GeneratedColumn<String>(
+      'location_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _imageUrlsMeta =
+      const VerificationMeta('imageUrls');
+  @override
+  late final GeneratedColumn<String> imageUrls = GeneratedColumn<String>(
+      'image_urls', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _notebookIdMeta =
+      const VerificationMeta('notebookId');
+  @override
+  late final GeneratedColumn<int> notebookId = GeneratedColumn<int>(
+      'notebook_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        cloudId,
+        content,
+        mood,
+        date,
+        createdAt,
+        updatedAt,
+        userId,
+        location,
+        locationName,
+        imageUrls,
+        notebookId
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -111,6 +147,26 @@ class $DiaryEntriesTable extends DiaryEntries
     } else if (isInserting) {
       context.missing(_userIdMeta);
     }
+    if (data.containsKey('location')) {
+      context.handle(_locationMeta,
+          location.isAcceptableOrUnknown(data['location']!, _locationMeta));
+    }
+    if (data.containsKey('location_name')) {
+      context.handle(
+          _locationNameMeta,
+          locationName.isAcceptableOrUnknown(
+              data['location_name']!, _locationNameMeta));
+    }
+    if (data.containsKey('image_urls')) {
+      context.handle(_imageUrlsMeta,
+          imageUrls.isAcceptableOrUnknown(data['image_urls']!, _imageUrlsMeta));
+    }
+    if (data.containsKey('notebook_id')) {
+      context.handle(
+          _notebookIdMeta,
+          notebookId.isAcceptableOrUnknown(
+              data['notebook_id']!, _notebookIdMeta));
+    }
     return context;
   }
 
@@ -136,6 +192,14 @@ class $DiaryEntriesTable extends DiaryEntries
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       userId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
+      location: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}location']),
+      locationName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}location_name']),
+      imageUrls: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}image_urls']),
+      notebookId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}notebook_id']),
     );
   }
 
@@ -188,6 +252,27 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
   /// 关联 Supabase Auth 中的用户标识符。
   /// 用于数据隔离，确保每个用户只能访问自己的日记。
   final String userId;
+
+  /// 地理位置字符串（可选），格式："纬度,经度"
+  ///
+  /// 记录写日记时的地理坐标，用于展示记录地点。
+  final String? location;
+
+  /// 位置地名（可选），存储经 geocoding 解析后的可读地址
+  ///
+  /// 例如："酸奶紫米露(西华记忆店)西华..."
+  final String? locationName;
+
+  /// 图片 URL 列表（可选），以英文逗号分隔
+  ///
+  /// 日记中插入的所有图片的 URL，逗号分隔。
+  /// 展示时取第一张作为封面缩略图。
+  final String? imageUrls;
+
+  /// 所属日记本 ID（可选）
+  ///
+  /// 关联 [Notebooks] 表的主键。为 null 时归属默认日记本。
+  final int? notebookId;
   const DiaryEntry(
       {required this.id,
       this.cloudId,
@@ -196,7 +281,11 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
       required this.date,
       required this.createdAt,
       required this.updatedAt,
-      required this.userId});
+      required this.userId,
+      this.location,
+      this.locationName,
+      this.imageUrls,
+      this.notebookId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -212,6 +301,18 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || location != null) {
+      map['location'] = Variable<String>(location);
+    }
+    if (!nullToAbsent || locationName != null) {
+      map['location_name'] = Variable<String>(locationName);
+    }
+    if (!nullToAbsent || imageUrls != null) {
+      map['image_urls'] = Variable<String>(imageUrls);
+    }
+    if (!nullToAbsent || notebookId != null) {
+      map['notebook_id'] = Variable<int>(notebookId);
+    }
     return map;
   }
 
@@ -227,6 +328,18 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       userId: Value(userId),
+      location: location == null && nullToAbsent
+          ? const Value.absent()
+          : Value(location),
+      locationName: locationName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationName),
+      imageUrls: imageUrls == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUrls),
+      notebookId: notebookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notebookId),
     );
   }
 
@@ -242,6 +355,10 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       userId: serializer.fromJson<String>(json['userId']),
+      location: serializer.fromJson<String?>(json['location']),
+      locationName: serializer.fromJson<String?>(json['locationName']),
+      imageUrls: serializer.fromJson<String?>(json['imageUrls']),
+      notebookId: serializer.fromJson<int?>(json['notebookId']),
     );
   }
   @override
@@ -256,6 +373,10 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'userId': serializer.toJson<String>(userId),
+      'location': serializer.toJson<String?>(location),
+      'locationName': serializer.toJson<String?>(locationName),
+      'imageUrls': serializer.toJson<String?>(imageUrls),
+      'notebookId': serializer.toJson<int?>(notebookId),
     };
   }
 
@@ -267,7 +388,11 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
           DateTime? date,
           DateTime? createdAt,
           DateTime? updatedAt,
-          String? userId}) =>
+          String? userId,
+          Value<String?> location = const Value.absent(),
+          Value<String?> locationName = const Value.absent(),
+          Value<String?> imageUrls = const Value.absent(),
+          Value<int?> notebookId = const Value.absent()}) =>
       DiaryEntry(
         id: id ?? this.id,
         cloudId: cloudId.present ? cloudId.value : this.cloudId,
@@ -277,6 +402,11 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         userId: userId ?? this.userId,
+        location: location.present ? location.value : this.location,
+        locationName:
+            locationName.present ? locationName.value : this.locationName,
+        imageUrls: imageUrls.present ? imageUrls.value : this.imageUrls,
+        notebookId: notebookId.present ? notebookId.value : this.notebookId,
       );
   DiaryEntry copyWithCompanion(DiaryEntriesCompanion data) {
     return DiaryEntry(
@@ -288,6 +418,13 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       userId: data.userId.present ? data.userId.value : this.userId,
+      location: data.location.present ? data.location.value : this.location,
+      locationName: data.locationName.present
+          ? data.locationName.value
+          : this.locationName,
+      imageUrls: data.imageUrls.present ? data.imageUrls.value : this.imageUrls,
+      notebookId:
+          data.notebookId.present ? data.notebookId.value : this.notebookId,
     );
   }
 
@@ -301,14 +438,18 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
           ..write('date: $date, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('userId: $userId')
+          ..write('userId: $userId, ')
+          ..write('location: $location, ')
+          ..write('locationName: $locationName, ')
+          ..write('imageUrls: $imageUrls, ')
+          ..write('notebookId: $notebookId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, cloudId, content, mood, date, createdAt, updatedAt, userId);
+  int get hashCode => Object.hash(id, cloudId, content, mood, date, createdAt,
+      updatedAt, userId, location, locationName, imageUrls, notebookId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -320,7 +461,11 @@ class DiaryEntry extends DataClass implements Insertable<DiaryEntry> {
           other.date == this.date &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.userId == this.userId);
+          other.userId == this.userId &&
+          other.location == this.location &&
+          other.locationName == this.locationName &&
+          other.imageUrls == this.imageUrls &&
+          other.notebookId == this.notebookId);
 }
 
 class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
@@ -332,6 +477,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<String> userId;
+  final Value<String?> location;
+  final Value<String?> locationName;
+  final Value<String?> imageUrls;
+  final Value<int?> notebookId;
   const DiaryEntriesCompanion({
     this.id = const Value.absent(),
     this.cloudId = const Value.absent(),
@@ -341,6 +490,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.userId = const Value.absent(),
+    this.location = const Value.absent(),
+    this.locationName = const Value.absent(),
+    this.imageUrls = const Value.absent(),
+    this.notebookId = const Value.absent(),
   });
   DiaryEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -351,6 +504,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
     required DateTime createdAt,
     required DateTime updatedAt,
     required String userId,
+    this.location = const Value.absent(),
+    this.locationName = const Value.absent(),
+    this.imageUrls = const Value.absent(),
+    this.notebookId = const Value.absent(),
   })  : content = Value(content),
         date = Value(date),
         createdAt = Value(createdAt),
@@ -365,6 +522,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<String>? userId,
+    Expression<String>? location,
+    Expression<String>? locationName,
+    Expression<String>? imageUrls,
+    Expression<int>? notebookId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -375,6 +536,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (userId != null) 'user_id': userId,
+      if (location != null) 'location': location,
+      if (locationName != null) 'location_name': locationName,
+      if (imageUrls != null) 'image_urls': imageUrls,
+      if (notebookId != null) 'notebook_id': notebookId,
     });
   }
 
@@ -386,7 +551,11 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
       Value<DateTime>? date,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
-      Value<String>? userId}) {
+      Value<String>? userId,
+      Value<String?>? location,
+      Value<String?>? locationName,
+      Value<String?>? imageUrls,
+      Value<int?>? notebookId}) {
     return DiaryEntriesCompanion(
       id: id ?? this.id,
       cloudId: cloudId ?? this.cloudId,
@@ -396,6 +565,10 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       userId: userId ?? this.userId,
+      location: location ?? this.location,
+      locationName: locationName ?? this.locationName,
+      imageUrls: imageUrls ?? this.imageUrls,
+      notebookId: notebookId ?? this.notebookId,
     );
   }
 
@@ -426,6 +599,18 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
     if (userId.present) {
       map['user_id'] = Variable<String>(userId.value);
     }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (locationName.present) {
+      map['location_name'] = Variable<String>(locationName.value);
+    }
+    if (imageUrls.present) {
+      map['image_urls'] = Variable<String>(imageUrls.value);
+    }
+    if (notebookId.present) {
+      map['notebook_id'] = Variable<int>(notebookId.value);
+    }
     return map;
   }
 
@@ -439,7 +624,11 @@ class DiaryEntriesCompanion extends UpdateCompanion<DiaryEntry> {
           ..write('date: $date, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('userId: $userId')
+          ..write('userId: $userId, ')
+          ..write('location: $location, ')
+          ..write('locationName: $locationName, ')
+          ..write('imageUrls: $imageUrls, ')
+          ..write('notebookId: $notebookId')
           ..write(')'))
         .toString();
   }
@@ -1592,6 +1781,431 @@ class NewsBookmarksCompanion extends UpdateCompanion<NewsBookmark> {
   }
 }
 
+class $NotebooksTable extends Notebooks
+    with TableInfo<$NotebooksTable, Notebook> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotebooksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _cloudIdMeta =
+      const VerificationMeta('cloudId');
+  @override
+  late final GeneratedColumn<String> cloudId = GeneratedColumn<String>(
+      'cloud_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _coverUrlMeta =
+      const VerificationMeta('coverUrl');
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+      'cover_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sortOrderMeta =
+      const VerificationMeta('sortOrder');
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+      'sort_order', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+      'user_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, cloudId, name, coverUrl, sortOrder, createdAt, updatedAt, userId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notebooks';
+  @override
+  VerificationContext validateIntegrity(Insertable<Notebook> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('cloud_id')) {
+      context.handle(_cloudIdMeta,
+          cloudId.isAcceptableOrUnknown(data['cloud_id']!, _cloudIdMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('cover_url')) {
+      context.handle(_coverUrlMeta,
+          coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta));
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(_sortOrderMeta,
+          sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(_userIdMeta,
+          userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta));
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Notebook map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Notebook(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      cloudId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cloud_id']),
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      coverUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_url']),
+      sortOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+      userId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
+    );
+  }
+
+  @override
+  $NotebooksTable createAlias(String alias) {
+    return $NotebooksTable(attachedDatabase, alias);
+  }
+}
+
+class Notebook extends DataClass implements Insertable<Notebook> {
+  /// 自增主键
+  final int id;
+
+  /// 云端主键 ID（Supabase UUID）
+  final String? cloudId;
+
+  /// 日记本名称
+  final String name;
+
+  /// 封面图片 URL（可选）
+  final String? coverUrl;
+
+  /// 排序序号（数值越小越靠前）
+  final int sortOrder;
+
+  /// 记录创建时间
+  final DateTime createdAt;
+
+  /// 记录最后更新时间
+  final DateTime updatedAt;
+
+  /// 所属用户 ID
+  final String userId;
+  const Notebook(
+      {required this.id,
+      this.cloudId,
+      required this.name,
+      this.coverUrl,
+      required this.sortOrder,
+      required this.createdAt,
+      required this.updatedAt,
+      required this.userId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || cloudId != null) {
+      map['cloud_id'] = Variable<String>(cloudId);
+    }
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['user_id'] = Variable<String>(userId);
+    return map;
+  }
+
+  NotebooksCompanion toCompanion(bool nullToAbsent) {
+    return NotebooksCompanion(
+      id: Value(id),
+      cloudId: cloudId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cloudId),
+      name: Value(name),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
+      sortOrder: Value(sortOrder),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      userId: Value(userId),
+    );
+  }
+
+  factory Notebook.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Notebook(
+      id: serializer.fromJson<int>(json['id']),
+      cloudId: serializer.fromJson<String?>(json['cloudId']),
+      name: serializer.fromJson<String>(json['name']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      userId: serializer.fromJson<String>(json['userId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cloudId': serializer.toJson<String?>(cloudId),
+      'name': serializer.toJson<String>(name),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'userId': serializer.toJson<String>(userId),
+    };
+  }
+
+  Notebook copyWith(
+          {int? id,
+          Value<String?> cloudId = const Value.absent(),
+          String? name,
+          Value<String?> coverUrl = const Value.absent(),
+          int? sortOrder,
+          DateTime? createdAt,
+          DateTime? updatedAt,
+          String? userId}) =>
+      Notebook(
+        id: id ?? this.id,
+        cloudId: cloudId.present ? cloudId.value : this.cloudId,
+        name: name ?? this.name,
+        coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+        sortOrder: sortOrder ?? this.sortOrder,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        userId: userId ?? this.userId,
+      );
+  Notebook copyWithCompanion(NotebooksCompanion data) {
+    return Notebook(
+      id: data.id.present ? data.id.value : this.id,
+      cloudId: data.cloudId.present ? data.cloudId.value : this.cloudId,
+      name: data.name.present ? data.name.value : this.name,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      userId: data.userId.present ? data.userId.value : this.userId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Notebook(')
+          ..write('id: $id, ')
+          ..write('cloudId: $cloudId, ')
+          ..write('name: $name, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('userId: $userId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, cloudId, name, coverUrl, sortOrder, createdAt, updatedAt, userId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Notebook &&
+          other.id == this.id &&
+          other.cloudId == this.cloudId &&
+          other.name == this.name &&
+          other.coverUrl == this.coverUrl &&
+          other.sortOrder == this.sortOrder &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.userId == this.userId);
+}
+
+class NotebooksCompanion extends UpdateCompanion<Notebook> {
+  final Value<int> id;
+  final Value<String?> cloudId;
+  final Value<String> name;
+  final Value<String?> coverUrl;
+  final Value<int> sortOrder;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> userId;
+  const NotebooksCompanion({
+    this.id = const Value.absent(),
+    this.cloudId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.userId = const Value.absent(),
+  });
+  NotebooksCompanion.insert({
+    this.id = const Value.absent(),
+    this.cloudId = const Value.absent(),
+    required String name,
+    this.coverUrl = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String userId,
+  })  : name = Value(name),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt),
+        userId = Value(userId);
+  static Insertable<Notebook> custom({
+    Expression<int>? id,
+    Expression<String>? cloudId,
+    Expression<String>? name,
+    Expression<String>? coverUrl,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<String>? userId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cloudId != null) 'cloud_id': cloudId,
+      if (name != null) 'name': name,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (userId != null) 'user_id': userId,
+    });
+  }
+
+  NotebooksCompanion copyWith(
+      {Value<int>? id,
+      Value<String?>? cloudId,
+      Value<String>? name,
+      Value<String?>? coverUrl,
+      Value<int>? sortOrder,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
+      Value<String>? userId}) {
+    return NotebooksCompanion(
+      id: id ?? this.id,
+      cloudId: cloudId ?? this.cloudId,
+      name: name ?? this.name,
+      coverUrl: coverUrl ?? this.coverUrl,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      userId: userId ?? this.userId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cloudId.present) {
+      map['cloud_id'] = Variable<String>(cloudId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotebooksCompanion(')
+          ..write('id: $id, ')
+          ..write('cloudId: $cloudId, ')
+          ..write('name: $name, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('userId: $userId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1599,12 +2213,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TasksTable tasks = $TasksTable(this);
   late final $NewsSummariesTable newsSummaries = $NewsSummariesTable(this);
   late final $NewsBookmarksTable newsBookmarks = $NewsBookmarksTable(this);
+  late final $NotebooksTable notebooks = $NotebooksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [diaryEntries, tasks, newsSummaries, newsBookmarks];
+      [diaryEntries, tasks, newsSummaries, newsBookmarks, notebooks];
 }
 
 typedef $$DiaryEntriesTableCreateCompanionBuilder = DiaryEntriesCompanion
@@ -1617,6 +2232,10 @@ typedef $$DiaryEntriesTableCreateCompanionBuilder = DiaryEntriesCompanion
   required DateTime createdAt,
   required DateTime updatedAt,
   required String userId,
+  Value<String?> location,
+  Value<String?> locationName,
+  Value<String?> imageUrls,
+  Value<int?> notebookId,
 });
 typedef $$DiaryEntriesTableUpdateCompanionBuilder = DiaryEntriesCompanion
     Function({
@@ -1628,6 +2247,10 @@ typedef $$DiaryEntriesTableUpdateCompanionBuilder = DiaryEntriesCompanion
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<String> userId,
+  Value<String?> location,
+  Value<String?> locationName,
+  Value<String?> imageUrls,
+  Value<int?> notebookId,
 });
 
 class $$DiaryEntriesTableFilterComposer
@@ -1662,6 +2285,18 @@ class $$DiaryEntriesTableFilterComposer
 
   ColumnFilters<String> get userId => $composableBuilder(
       column: $table.userId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get location => $composableBuilder(
+      column: $table.location, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get locationName => $composableBuilder(
+      column: $table.locationName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get imageUrls => $composableBuilder(
+      column: $table.imageUrls, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get notebookId => $composableBuilder(
+      column: $table.notebookId, builder: (column) => ColumnFilters(column));
 }
 
 class $$DiaryEntriesTableOrderingComposer
@@ -1696,6 +2331,19 @@ class $$DiaryEntriesTableOrderingComposer
 
   ColumnOrderings<String> get userId => $composableBuilder(
       column: $table.userId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get location => $composableBuilder(
+      column: $table.location, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get locationName => $composableBuilder(
+      column: $table.locationName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get imageUrls => $composableBuilder(
+      column: $table.imageUrls, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get notebookId => $composableBuilder(
+      column: $table.notebookId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$DiaryEntriesTableAnnotationComposer
@@ -1730,6 +2378,18 @@ class $$DiaryEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get userId =>
       $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get locationName => $composableBuilder(
+      column: $table.locationName, builder: (column) => column);
+
+  GeneratedColumn<String> get imageUrls =>
+      $composableBuilder(column: $table.imageUrls, builder: (column) => column);
+
+  GeneratedColumn<int> get notebookId => $composableBuilder(
+      column: $table.notebookId, builder: (column) => column);
 }
 
 class $$DiaryEntriesTableTableManager extends RootTableManager<
@@ -1763,6 +2423,10 @@ class $$DiaryEntriesTableTableManager extends RootTableManager<
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<String> userId = const Value.absent(),
+            Value<String?> location = const Value.absent(),
+            Value<String?> locationName = const Value.absent(),
+            Value<String?> imageUrls = const Value.absent(),
+            Value<int?> notebookId = const Value.absent(),
           }) =>
               DiaryEntriesCompanion(
             id: id,
@@ -1773,6 +2437,10 @@ class $$DiaryEntriesTableTableManager extends RootTableManager<
             createdAt: createdAt,
             updatedAt: updatedAt,
             userId: userId,
+            location: location,
+            locationName: locationName,
+            imageUrls: imageUrls,
+            notebookId: notebookId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -1783,6 +2451,10 @@ class $$DiaryEntriesTableTableManager extends RootTableManager<
             required DateTime createdAt,
             required DateTime updatedAt,
             required String userId,
+            Value<String?> location = const Value.absent(),
+            Value<String?> locationName = const Value.absent(),
+            Value<String?> imageUrls = const Value.absent(),
+            Value<int?> notebookId = const Value.absent(),
           }) =>
               DiaryEntriesCompanion.insert(
             id: id,
@@ -1793,6 +2465,10 @@ class $$DiaryEntriesTableTableManager extends RootTableManager<
             createdAt: createdAt,
             updatedAt: updatedAt,
             userId: userId,
+            location: location,
+            locationName: locationName,
+            imageUrls: imageUrls,
+            notebookId: notebookId,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -2380,6 +3056,210 @@ typedef $$NewsBookmarksTableProcessedTableManager = ProcessedTableManager<
     ),
     NewsBookmark,
     PrefetchHooks Function()>;
+typedef $$NotebooksTableCreateCompanionBuilder = NotebooksCompanion Function({
+  Value<int> id,
+  Value<String?> cloudId,
+  required String name,
+  Value<String?> coverUrl,
+  Value<int> sortOrder,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  required String userId,
+});
+typedef $$NotebooksTableUpdateCompanionBuilder = NotebooksCompanion Function({
+  Value<int> id,
+  Value<String?> cloudId,
+  Value<String> name,
+  Value<String?> coverUrl,
+  Value<int> sortOrder,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<String> userId,
+});
+
+class $$NotebooksTableFilterComposer
+    extends Composer<_$AppDatabase, $NotebooksTable> {
+  $$NotebooksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cloudId => $composableBuilder(
+      column: $table.cloudId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnFilters(column));
+}
+
+class $$NotebooksTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotebooksTable> {
+  $$NotebooksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cloudId => $composableBuilder(
+      column: $table.cloudId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnOrderings(column));
+}
+
+class $$NotebooksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotebooksTable> {
+  $$NotebooksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get cloudId =>
+      $composableBuilder(column: $table.cloudId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+}
+
+class $$NotebooksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $NotebooksTable,
+    Notebook,
+    $$NotebooksTableFilterComposer,
+    $$NotebooksTableOrderingComposer,
+    $$NotebooksTableAnnotationComposer,
+    $$NotebooksTableCreateCompanionBuilder,
+    $$NotebooksTableUpdateCompanionBuilder,
+    (Notebook, BaseReferences<_$AppDatabase, $NotebooksTable, Notebook>),
+    Notebook,
+    PrefetchHooks Function()> {
+  $$NotebooksTableTableManager(_$AppDatabase db, $NotebooksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotebooksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotebooksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NotebooksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> cloudId = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<String> userId = const Value.absent(),
+          }) =>
+              NotebooksCompanion(
+            id: id,
+            cloudId: cloudId,
+            name: name,
+            coverUrl: coverUrl,
+            sortOrder: sortOrder,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            userId: userId,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> cloudId = const Value.absent(),
+            required String name,
+            Value<String?> coverUrl = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            required DateTime createdAt,
+            required DateTime updatedAt,
+            required String userId,
+          }) =>
+              NotebooksCompanion.insert(
+            id: id,
+            cloudId: cloudId,
+            name: name,
+            coverUrl: coverUrl,
+            sortOrder: sortOrder,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            userId: userId,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$NotebooksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $NotebooksTable,
+    Notebook,
+    $$NotebooksTableFilterComposer,
+    $$NotebooksTableOrderingComposer,
+    $$NotebooksTableAnnotationComposer,
+    $$NotebooksTableCreateCompanionBuilder,
+    $$NotebooksTableUpdateCompanionBuilder,
+    (Notebook, BaseReferences<_$AppDatabase, $NotebooksTable, Notebook>),
+    Notebook,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2392,4 +3272,6 @@ class $AppDatabaseManager {
       $$NewsSummariesTableTableManager(_db, _db.newsSummaries);
   $$NewsBookmarksTableTableManager get newsBookmarks =>
       $$NewsBookmarksTableTableManager(_db, _db.newsBookmarks);
+  $$NotebooksTableTableManager get notebooks =>
+      $$NotebooksTableTableManager(_db, _db.notebooks);
 }
